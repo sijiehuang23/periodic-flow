@@ -48,11 +48,11 @@ class Timer:
         dt = t1 - self.t0
         self.t0 = t1
 
-        dt_sum = self.comm.reduce(dt, op=mpi.SUM, root=0)
-        dt_avg = dt_sum / self.mpi_size if self.mpi_size > 1 else dt
+        dt_sum = self.comm.allreduce(dt, op=mpi.SUM)
+        dt_avg = dt_sum / self.mpi_size
 
         if self.verbose and self.mpi_rank == 0:
-            logger.info(f"Step = {step:08d}, time = {simulation_time:.2e}, runtime since last check = {self._format_time(dt_avg)}")
+            logger.info(f"Step = {step:08d}, time = {simulation_time:.2e}, runtime since last check = {self._format_time(dt_avg, 'hh:mm:ss')}")
 
         self.comm.Barrier()
 
@@ -66,26 +66,34 @@ class Timer:
         # end_wall_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         runtime = time.time() - self.start_time
 
-        runtime_sum = self.comm.reduce(runtime, op=mpi.SUM, root=0)
-        runtime_avg = runtime_sum / self.mpi_size if self.mpi_size > 1 else runtime
+        runtime_sum = self.comm.allreduce(runtime, op=mpi.SUM)
+        runtime_avg = runtime_sum / self.mpi_size
 
         if self.mpi_rank == 0:
-            logger.info(f"Simulation completed")
-            logger.info(f"  Total run time: {self._format_time(runtime_avg)}")
+            logger.info(f"Simulation completed. Total run time: {self._format_time(runtime_avg)}")
 
     @staticmethod
-    def _format_time(seconds: float) -> str:
+    def _format_time(seconds: float, format='dd-hh:mm:ss') -> str:
         """
-        Format the time in DD-HH:MM:SS format.
+        Format the time into various formats: 'dd-hh:mm:ss', 'hh:mm:ss', or 'mm:ss'.
 
         Parameters:
             seconds (float): Time in seconds.
+            format (str): Desired format ('dd-hh:mm:ss', 'hh:mm:ss', 'mm:ss').
 
         Returns:
             str: Formatted time string.
         """
-        days = int(seconds // 86400)  # Total seconds in a day
-        hours = int((seconds % 86400) // 3600)
-        minutes = int((seconds % 3600) // 60)
-        secs = int(seconds % 60)
-        return f"{days:02d}-{hours:02d}:{minutes:02d}:{secs:02d}"
+        days, remainder = divmod(seconds, 86400)  # Total seconds in a day
+        hours, remainder = divmod(remainder, 3600)
+        minutes, secs = divmod(remainder, 60)
+
+        format = format.casefold()
+        if format == 'mm:ss':
+            return f"{int(minutes):02d}:{int(secs):02d}"
+        elif format == 'hh:mm:ss':
+            return f"{int(hours):02d}:{int(minutes):02d}:{int(secs):02d}"
+        elif format == 'dd-hh:mm:ss':
+            return f"{int(days):02d}-{int(hours):02d}:{int(minutes):02d}:{int(secs):02d}"
+        else:
+            raise ValueError("Invalid format. Choose 'dd-hh:mm:ss', 'hh:mm:ss', or 'mm:ss'.")
