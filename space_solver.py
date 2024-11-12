@@ -103,6 +103,7 @@ class SpaceSolver(FourierSpace):
         comm: mpi.Comm,
         mpi_rank: int,
         N: list | tuple,
+        nonlinear: bool = False,
         viscosity: float = 1e-3,
         noise_type: str = 'thermal',
         noise_mag: float = 0.0,
@@ -114,6 +115,7 @@ class SpaceSolver(FourierSpace):
             logger.error("NS solver only supports 2D and 3D problems.")
             raise ValueError("NS solver only supports 2D and 3D problems.")
 
+        self._nonlinear = nonlinear
         self.viscosity = viscosity
 
         self.noise_type = noise_type
@@ -238,6 +240,7 @@ class SpaceSolver(FourierSpace):
 
     def compute_rhs(self, a: float = 0.0):
         self.compute_rhs_linear()
-        # self.compute_rhs_nonlinear()
+        if self._nonlinear:
+            self.compute_rhs_nonlinear()
         self.add_noise(a)
         self.add_forcing()

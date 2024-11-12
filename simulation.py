@@ -54,6 +54,7 @@ class Solver:
             N: list | tuple,
             dt: float,
             end_time: float,
+            nonlinear: bool = False,
             time_integrator: str = "rk2",
             viscosity: float = 1e-3,
             noise_type: str = "thermal",
