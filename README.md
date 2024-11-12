@@ -8,7 +8,7 @@ This code is designed to perform __direct numerical simulation__ (__DNS__) in pe
 
 The incompressible Navier-Stokes equations under consideration are 
 $$
-\partial_t\boldsymbol{u} = \boldsymbol{u}\times\boldsymbol{\omega} -\boldsymbol{\nabla}P + \nu\Delta\boldsymbol{u} + \boldsymbol{\eta} + \boldsymbol{f},\tag{1}
+\partial_t\boldsymbol{u} = \boldsymbol{u}\times\boldsymbol{\omega} -\boldsymbol{\nabla}P + \nu\Delta\boldsymbol{u} + \boldsymbol{\eta} + \boldsymbol{f},
 $$
 where $\boldsymbol{u}(\boldsymbol{x})$ is the velocity field subject to the incompressibility condition ($\boldsymbol{\nabla}\cdot\boldsymbol{u}\equiv0$), $\boldsymbol{\omega} = \boldsymbol{\nabla}\times\boldsymbol{u}$ is the vorticity field, $P = p + |\boldsymbol{u}|^2/2$ is the modified pressure field, $\nu$ is the kinematic viscosity assumed to be constant, $\boldsymbol{\eta}$ is a stochastic field modeling mesoscopic random fluctuations (such as thermal fluctuation in fluctuating hydrodynamics), and $\boldsymbol{f}$ is an external forcing to sustain the flow if needed (for example, sustaining turbulent flows). 
 
@@ -16,7 +16,7 @@ where $\boldsymbol{u}(\boldsymbol{x})$ is the velocity field subject to the inco
 
 The equations are solved in Fourier space, which are written as 
 $$
-\left(d_t + \nu k^2\right)\hat{\boldsymbol{u}}(\boldsymbol{k}) = \boldsymbol{\mathcal{P}}\left(\widehat{\boldsymbol{u}\times\boldsymbol{\omega}} + \hat{\boldsymbol{\eta}} + \hat{\boldsymbol{f}}\right),\tag{2}
+\left(d_t + \nu k^2\right)\hat{\boldsymbol{u}}(\boldsymbol{k}) = \boldsymbol{\mathcal{P}}\left(\widehat{\boldsymbol{u}\times\boldsymbol{\omega}} + \hat{\boldsymbol{\eta}} + \hat{\boldsymbol{f}}\right),
 $$
 where $\mathcal{P}\equiv\boldsymbol{I} - \boldsymbol{k}\otimes\boldsymbol{k}/k^2$ is the __Leray projection operator__ projecting vectors to the solenoidal subspace, and the nonlinear term $\boldsymbol{u}\times\boldsymbol{\omega}$ is evaluated in physical space and then transformed to the Fourier space (hence, pseudo-spectral method). This step requires dealiasing. [shenfun](https://github.com/spectralDNS/shenfun) provides both zero-padding (3/2 method) and truncating (2/3 method) methods. 
 
