@@ -2,7 +2,7 @@ import numpy as np
 import time
 from datetime import datetime
 import mpi4py.MPI as mpi
-from isoflow import logger
+from periodicflow import logger
 
 
 def periodic_bc(u: np.ndarray) -> np.ndarray:
