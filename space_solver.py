@@ -103,7 +103,7 @@ class SpaceSolver(FourierSpace):
         comm: mpi.Comm,
         mpi_rank: int,
         N: list | tuple,
-        nonlinear: bool = False,
+        nonlinear: bool = True,
         viscosity: float = 1e-3,
         noise_type: str = 'thermal',
         noise_mag: float = 0.0,
