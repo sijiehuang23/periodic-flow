@@ -80,6 +80,7 @@ class Solver:
             self.comm,
             self.mpi_rank,
             N,
+            nonlinear=nonlinear,
             viscosity=viscosity,
             noise_type=noise_type,
             noise_mag=noise_mag,

@@ -229,6 +229,7 @@ class SpaceSolver(FourierSpace):
         self.Wp.backward(self.vort_hat, self.vort_dealias)
 
     def compute_rhs_nonlinear(self):
+        print("Computing nonlinear rhs...")
         self.compute_vorticity()
         self.Vp.backward(self.u_hat, self.u_dealias)
 
