@@ -66,6 +66,7 @@ class Solver:
             file_name: str = None,
             file_mode: str = "w",
             write_interval: int = 100,
+            periodic: bool = False,
             dealias: str = "3/2",
             fft_plan: str = "FFTW_MEASURE",
             decomposition: str = "slab",
@@ -103,7 +104,7 @@ class Solver:
         self.file_mode = file_mode
 
         self._init_integrator(time_integrator, dt, optimization)
-        self._init_writer(file_name)
+        self._init_writer(file_name, periodic)
         self._timer = Timer(self.comm, verbose)
 
     def __getattr__(self, name):
@@ -121,7 +122,7 @@ class Solver:
         except Exception as e:
             raise RuntimeError(f"Failed to initialize time integrator: {e}")
 
-    def _init_writer(self, file_name):
+    def _init_writer(self, file_name, periodic):
         if self.write_solution:
             if file_name.endswith(".h5"):
                 file_name.replace(".h5", "")
@@ -132,10 +133,16 @@ class Solver:
                 name: [self.space_solver.u[i]] for i, name in enumerate(component_names)
             }
 
+            end_points = [x_end for _, x_end in self.space_solver.domain]
             self.solution_writer = HDF5Writer(
+                self.comm,
+                self.mpi_rank,
+                self.mpi_size,
                 file_name,
                 solution=solution_dict,
-                time_points=[0.0, self.end_time]
+                time_points=[0.0, self.end_time],
+                end_points=end_points,
+                periodic=periodic
             )
 
     @classmethod
@@ -143,7 +150,7 @@ class Solver:
         """Read configurations from a dictionary."""
         return cls(**config)
 
-    def initialize(self, u0: np.ndarray, space: str = 'physical', project: bool = True):
+    def initialize(self, u0: np.ndarray, space: str = 'physical', project: bool = False):
         self.space_solver.initialize_velocity(u0, space)
 
         if project:
