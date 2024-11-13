@@ -127,7 +127,7 @@ class HDF5Writer:
 
         comm.Barrier()
 
-    def reconfigure_dateset(self):
+    def reconfigure_dataset(self):
         """
         Reconfigure dataset structure determined by ShenfunFile.
 
