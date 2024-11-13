@@ -45,7 +45,7 @@ class FourierSpace:
         self.T = sf.CompositeSpace([self.S] * self.dim**2)
         self.W = self.S if self.dim == 2 else self.V
 
-        self.x = S.local_mesh(bcast=True)
+        self.x = S.local_mesh()
         self.k = np.array(k)
         self.k2 = sum(ki**2 for ki in k)
         self.k_over_k2 = np.array([ki / np.where(self.k2 == 0, 1, self.k2) for ki in k])

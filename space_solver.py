@@ -140,6 +140,9 @@ class SpaceSolver(FourierSpace):
         self.u_hat = sf.Function(self.V)
         self.u_dealias = sf.Array(self.Vp)
 
+        self.shape_local_physical = self.u.shape
+        self.shape_local_fourier = self.u_hat.shape
+
         self.p = sf.Array(self.S)
         self.p_hat = sf.Function(self.S)
 
@@ -162,11 +165,11 @@ class SpaceSolver(FourierSpace):
 
     def initialize_velocity(self, u0: np.ndarray, space: str = 'physical'):
         if space.casefold() == 'physical':
-            if u0.shape[0] != self.dim:
+            if u0.shape != self.u.shape:
                 if self.mpi_rank == 0:
-                    logger.error("SpaceSolver.initialize_velocity: Invalid shape for the input velocity field.")
+                    logger.error("SpaceSolver.initialize_velocity: Invalid shape for the input physical velocity.")
                 raise ValueError(
-                    f"SpaceSolver.initialize_velocity: Invalid shape for the input velocity field. "
+                    f"SpaceSolver.initialize_velocity: Invalid shape for the input physical velocity. "
                     f"Expected {self.u.shape}, got {u0.shape}."
                 )
             self.u[:] = u0
@@ -174,9 +177,9 @@ class SpaceSolver(FourierSpace):
         elif space.casefold() == 'fourier':
             if u0.shape != self.u_hat.shape:
                 if self.mpi_rank == 0:
-                    logger.error("SpaceSolver.initialize_velocity: Invalid shape for the input velocity field.")
+                    logger.error("SpaceSolver.initialize_velocity: Invalid shape for the input Fourier velocity.")
                 raise ValueError(
-                    f"SpaceSolver.initialize_velocity: Invalid shape for the input velocity field. "
+                    f"SpaceSolver.initialize_velocity: Invalid shape for the input Fourier velocity. "
                     f"Expected {self.u_hat.shape}, got {u0.shape}."
                 )
             self.u_hat[:] = u0
