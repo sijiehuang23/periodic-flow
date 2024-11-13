@@ -151,7 +151,6 @@ class HDF5Writer:
 
         comm = self.comm
         rank = self.mpi_rank
-        size = self.mpi_size
         periodic = self.periodic
 
         if rank == 0:
@@ -162,8 +161,8 @@ class HDF5Writer:
         if not input_file.exists():
             raise FileNotFoundError(f"Solution file '{input_file}' does not exist.")
 
-        dataset_info = self._get_dataset_info(comm, rank, size, input_file, periodic)
-        self._prepare_temp_file(input_file, temp_file, dataset_info, periodic)
+        dataset_info = self._get_dataset_info(input_file)
+        self._prepare_temp_file(input_file, temp_file, dataset_info)
 
         try:
             with h5py.File(input_file, 'r', driver='mpio', comm=comm) as fr, \
