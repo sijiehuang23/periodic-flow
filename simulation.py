@@ -56,7 +56,7 @@ class Solver:
             N: list | tuple,
             dt: float,
             end_time: float,
-            nonlinear: bool = True,
+            is_nonlinear: bool = True,
             time_integrator: str = "rk2",
             viscosity: float = 1e-3,
             noise_type: str = "thermal",
@@ -84,7 +84,7 @@ class Solver:
             self.comm,
             self.mpi_rank,
             N,
-            nonlinear=nonlinear,
+            is_nonlinear=is_nonlinear,
             viscosity=viscosity,
             noise_type=noise_type,
             noise_mag=noise_mag,
@@ -171,9 +171,10 @@ class Solver:
 
     def set_linear_operator(self, L: np.ndarray):
         self.space_solver.linear_operator[:] = L
+        self.time_integrator.update_linear_operator(L)
 
     def set_correlation_function(self, C: np.ndarray):
-        self.space_solver.corr_function[:] = C
+        self.space_solver.correlation_func[:] = C
 
     def solve(self):
         self._timer.start()

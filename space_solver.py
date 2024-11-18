@@ -72,8 +72,12 @@ class SpaceSolver(FourierSpace):
     ----------
     comm : mpi.Comm
         MPI communicator used for parallel processing.
+    mpi_rank : int
+        Rank of the current processor.
     N : list or tuple of int
         Number of grid points in each direction.
+    is_nonlinear : bool, optional
+        Whether to include the nonlinear term in the Navier-Stokes equations. Default is True.
     viscosity : float, optional
         Kinematic viscosity of the fluid. Default is 1e-3.
     noise_type : str, optional
@@ -105,7 +109,7 @@ class SpaceSolver(FourierSpace):
         comm: mpi.Comm,
         mpi_rank: int,
         N: list | tuple,
-        nonlinear: bool = True,
+        is_nonlinear: bool = True,
         viscosity: float = 1e-3,
         noise_type: str = 'thermal',
         noise_mag: float = 0.0,
@@ -117,7 +121,7 @@ class SpaceSolver(FourierSpace):
             logger.error("NS solver only supports 2D and 3D problems.")
             raise ValueError("NS solver only supports 2D and 3D problems.")
 
-        self._nonlinear = nonlinear
+        self._is_nonlinear = is_nonlinear
         self.viscosity = viscosity
 
         self.noise_type = noise_type
@@ -129,11 +133,12 @@ class SpaceSolver(FourierSpace):
 
         self._define_variables()
 
-        self.linear_operator = -viscosity * self.k2
         self._k0_mask_0 = np.where(self.k2 == 0, 0, 1)
         self._prod_n_sqrt = np.sqrt(np.prod(N))
         self._noise_normal_factor = self._k0_mask_0 / self._prod_n_sqrt / np.sqrt(2 - 2 / self.dim)
-        self.corr_function = sf.Array(self.S)
+
+        self.linear_operator = -viscosity * self.k2
+        self.correlation_func = sf.Function(self.S)
 
         self.cached_array = sf.CachedArrayDict()
 
@@ -157,9 +162,9 @@ class SpaceSolver(FourierSpace):
         field = self.T if self.noise_type == 'thermal' else self.V
         self.w1 = sf.Function(field)
         self.w2 = sf.Function(field)
+        self.w_hat = sf.Function(field)
         self.noise = sf.Function(self.V)
         if self.noise_type == 'thermal':
-            self.w_hat = sf.Function(field)
             self.w_hat_sym = sf.Function(field)
 
         self.rhs_linear = sf.Function(self.V)
@@ -190,12 +195,21 @@ class SpaceSolver(FourierSpace):
             raise ValueError("SpaceSolver.initialize_velocity: Invalid space type. Options are 'physical' or 'fourier'.")
 
     def forward(self):
+        """
+        Call the forward transform from the vector space in space_solver 
+        """
         self.V.forward(self.u, self.u_hat)
 
     def backward(self):
+        """
+        Call the backward transform from the vector space in space_solver
+        """
         self.V.backward(self.u_hat, self.u)
 
     def random_fields(self):
+        """
+        Generate random white Gaussian fields for the noise terms.
+        """
         shape = self.w1.shape
         normal_factor = self._noise_normal_factor
 
@@ -206,6 +220,9 @@ class SpaceSolver(FourierSpace):
         self.w2 *= normal_factor
 
     def add_noise(self, a: float):
+        """
+        Generate noise fields.
+        """
         self.w_hat[:] = self.w1 + a * self.w2
 
         if self.noise_type == 'thermal':
@@ -217,23 +234,41 @@ class SpaceSolver(FourierSpace):
         self.noise *= self.noise_mag
 
     def thermal_noise(self):
+        """
+        Generate thermal noise field.
+        """
         _symmetrize(self.w_hat_sym, self.w_hat)
         _noise_divergence(self.noise, self.w_hat_sym, self.k)
 
     def correlated_noise(self):
-        apply_linear_operator(self.noise, self.corr_function, self.w_hat)
+        """
+        Generate spatially correlated noise field.
+        """
+        apply_linear_operator(self.noise, self.correlation_func, self.w_hat)
 
     def add_forcing(self):
+        """
+        Generate external forcing field.
+        """
         pass
 
     def compute_rhs_linear(self):
+        """
+        Compute the linear part of the right-hand side.
+        """
         apply_linear_operator(self.rhs_linear, self.linear_operator, self.u_hat)
 
     def compute_vorticity(self):
+        """
+        Compute the vorticity field in Fourier space.
+        """
         curl(self.vort_hat, self.k, self.u_hat)
         self.Wp.backward(self.vort_hat, self.vort_dealias)
 
     def compute_rhs_nonlinear(self):
+        """
+        Compute the nonlinear part of the right-hand side.
+        """
         self.compute_vorticity()
         self.Vp.backward(self.u_hat, self.u_dealias)
 
@@ -247,8 +282,11 @@ class SpaceSolver(FourierSpace):
             self.rhs_nonlinear.mask_nyquist(self.nyquist_mask)
 
     def compute_rhs(self, a: float = 0.0):
+        """
+        Assemble the overall right-hand side.
+        """
         self.compute_rhs_linear()
-        if self._nonlinear:
+        if self._is_nonlinear:
             self.compute_rhs_nonlinear()
         self.add_noise(a)
         self.add_forcing()

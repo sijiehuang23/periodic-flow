@@ -28,6 +28,10 @@ class TimeIntegrator(ABC):
         if linear_operator is not None:
             self._Linv = 1 / (1 - self.dt / 2 * linear_operator)
 
+    def update_linear_operator(self, L: np.ndarray):
+        self._L[:] = L
+        self._Linv[:] = 1 / (1 - self.dt / 2 * L)
+
 
 @register_integrator('explicit_pc')
 class ExplicitPredictorCorrector(TimeIntegrator):
@@ -109,7 +113,8 @@ class ImplicitPredictorCorrector(TimeIntegrator):
         dt = self.dt
         dt_sqrt = np.sqrt(0.5 * dt)
 
-        apply_linear_operator(rhs_linear, self._L, u0)
+        if stage == self.n_stages - 1:
+            apply_linear_operator(rhs_linear, self._L, u0)
 
         unew[:] = self._Linv * (u0 + a * dt * (rhs_nonlinear + forcing) + b * dt * rhs_linear + dt_sqrt * noise)
 
@@ -118,7 +123,8 @@ class ImplicitPredictorCorrector(TimeIntegrator):
         dt = self.dt
         dt_sqrt = np.sqrt(0.5 * dt)
 
-        apply_linear_operator(rhs_linear, self._L, u0)
+        if stage == self.n_stages - 1:
+            apply_linear_operator(rhs_linear, self._L, u0)
 
         self._loops_numba(unew, self._Linv, dt, dt_sqrt, a, b, u0, rhs_nonlinear, rhs_linear, forcing, noise)
 
