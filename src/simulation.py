@@ -183,6 +183,7 @@ class Solver:
         self.space_solver.correlation_func[:] = C
 
     def solve(self):
+        self.comm.Barrier()
         self._timer.start()
 
         dt = self.time_integrator.dt
@@ -218,3 +219,4 @@ class Solver:
             self.solution_writer.close()
 
         self._timer.final()
+        self.comm.Barrier()
