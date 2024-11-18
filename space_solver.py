@@ -87,6 +87,8 @@ class SpaceSolver(FourierSpace):
             Domain size in each direction. Default is `2 * np.pi`.
         - dealias (str, optional)
             Dealiasing rule for Fourier transforms. Options are '2/3'/'truncate' (truncation) or '3/2'/'pad' (zero-padding). Default is '3/2'.
+        - mask_nyquist (bool, optional)
+            Whether to mask the Nyquist components setting them to zero. Default is False. 
         - fft_plan (str, optional)
             FFT planner effort, e.g., 'FFTW_MEASURE' for efficient computation. Default is 'FFTW_MEASURE'.
         - decomposition (str, optional)
@@ -240,6 +242,9 @@ class SpaceSolver(FourierSpace):
 
         self.Vp.forward(uw, self.rhs_nonlinear)
         leray_projection(self.rhs_nonlinear, self.k, self.k_over_k2, self.p_hat)
+
+        if self.nyquist_mask is not None:
+            self.rhs_nonlinear.mask_nyquist(self.nyquist_mask)
 
     def compute_rhs(self, a: float = 0.0):
         self.compute_rhs_linear()

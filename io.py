@@ -48,9 +48,16 @@ class HDF5Writer:
 
     @staticmethod
     def _distribute_steps(rank: int, size: int, steps: list):
+        """
+        Distribute steps among MPI processes using round-robin scheme.
+        """
         return [steps[i] for i in range(len(steps)) if i % size == rank]
 
     def _get_dataset_info(self, input_file: Path):
+        """
+        Get information about the dataset structure.
+        """
+
         comm = self.comm
         rank = self.mpi_rank
         size = self.mpi_size
@@ -92,6 +99,10 @@ class HDF5Writer:
         temp_file: Path,
         dataset_info: dict
     ):
+        """
+        Prepare temporary HDF5 file for reconfiguring dataset structure.
+        """
+
         comm = self.comm
         rank = self.mpi_rank
         time_points = self.time_points
@@ -100,7 +111,6 @@ class HDF5Writer:
         try:
             with h5py.File(input_file, 'r', driver='mpio', comm=comm) as fr, \
                     h5py.File(temp_file, 'w', driver='mpio', comm=comm) as fw:
-                pass
 
                 variables = dataset_info["variables"]
                 ndims = dataset_info["ndims"]
@@ -154,7 +164,7 @@ class HDF5Writer:
         periodic = self.periodic
 
         if rank == 0:
-            logger.info("Start reconfiguring dataset structure ...")
+            logger.info("HDF5Writer.reconfigure_dataset: Start reconfiguring dataset ...")
 
         input_file = Path(self.file_name).with_suffix(".h5")
         temp_file = Path(str(input_file).replace(".h5", "_temp.h5"))
@@ -191,4 +201,4 @@ class HDF5Writer:
             raise RuntimeError(f"[Rank {rank}]: {e}\n{traceback.format_exc()}")
 
         if rank == 0:
-            logger.info("Dataset structure reconfigured successfully.")
+            logger.info("HDF5Writer.reconfigure_dataset: Dataset reconfigured successfully.")

@@ -8,6 +8,29 @@ except ImportError:
 
 
 class FourierSpace:
+    """
+    This class sets up the Fourier space for pseudo-spectral methods.
+
+    Parameters
+    ----------
+    comm : mpi.Comm
+        MPI communicator.
+    mpi_rank : int
+        MPI rank.
+    N : list or tuple
+        Number of grid points in each direction.
+    domain : float or list or tuple, optional
+        Domain size in each direction. Default is 2*pi.
+    dealias : str, optional
+        Dealiasing rule. Options are '3/2', 'pad', '2/3', 'truncate'. Default is '3/2'.
+    mask_nyquist : bool, optional
+        Mask Nyquist components setting them to zero. Default is False.
+    fft_plan : str, optional
+        FFT planner effort. Default is 'FFTW_MEASURE'. Choices are 'FFTW_ESTIMATE', 'FFTW_MEASURE', 'FFTW_PATIENT', 'FFTW_EXHAUSTIVE'.
+    decomposition : str, optional
+        Parallel decomposition strategy. Options are 'slab' or 'pencil'. Default is 'slab'.
+    """
+
     def __init__(
         self,
         comm: mpi.Comm,
@@ -15,6 +38,7 @@ class FourierSpace:
         N: list | tuple,
         domain: float | list | tuple = 2 * np.pi,
         dealias: str = '3/2',
+        mask_nyquist: bool = False,
         fft_plan: str = 'FFTW_MEASURE',
         decomposition: str = 'slab'
     ):
@@ -45,6 +69,8 @@ class FourierSpace:
         self.T = sf.CompositeSpace([self.S] * self.dim**2)
         self.W = self.S if self.dim == 2 else self.V
 
+        self.nyquist_mask = S.get_mask_nyquist() if mask_nyquist else None
+
         self.x = S.local_mesh()
         self.k = np.array(k)
         self.k2 = sum(ki**2 for ki in k)
@@ -58,7 +84,7 @@ class FourierSpace:
         }
         dealias_option = dealias_options.get(dealias)
         if dealias_option is None:
-            raise ValueError(f"Invalid dealiasing rule: {dealias}.")
+            raise ValueError(f"FourierSpace: Invalid dealiasing rule: {dealias}.")
 
         self.Sp = self.S.get_dealiased(**dealias_option)
         self.Vp = sf.VectorSpace(self.Sp)

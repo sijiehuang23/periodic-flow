@@ -15,6 +15,7 @@ def cross(c, a, b):
             for j in range(shape[2]):
                 c[0, i, j] = a[1, i, j] * b[i, j]
                 c[1, i, j] = -a[0, i, j] * b[i, j]
+
     elif ndim == 4:
         for i in range(shape[1]):
             for j in range(shape[2]):

@@ -58,8 +58,8 @@ class ExplicitPredictorCorrector(TimeIntegrator):
 
         self._loops_numba(unew, a, dt, dt_sqrt, u0, rhs_nonlinear, rhs_linear, forcing, noise)
 
-    @ staticmethod
-    @ nb.njit
+    @staticmethod
+    @nb.njit
     def _loops_numba(unew, a, dt, dt_sqrt, u0, rhs_nonlinear, rhs_linear, forcing, noise):
         ndim = u0.ndim
         shape = u0.shape
@@ -86,7 +86,7 @@ class ExplicitPredictorCorrector(TimeIntegrator):
                             )
 
 
-@ register_integrator('implicit_pc')
+@register_integrator('implicit_pc')
 class ImplicitPredictorCorrector(TimeIntegrator):
     """
     This is a 2-stage implicit predictor-corrector time integrator proposed by Delong et al. (2013, PRE)
@@ -122,8 +122,8 @@ class ImplicitPredictorCorrector(TimeIntegrator):
 
         self._loops_numba(unew, self._Linv, dt, dt_sqrt, a, b, u0, rhs_nonlinear, rhs_linear, forcing, noise)
 
-    @ staticmethod
-    @ nb.njit
+    @staticmethod
+    @nb.njit
     def _loops_numba(unew, Linv, dt, dt_sqrt, a, b, u0, rhs_nonlinear, rhs_linear, forcing, noise):
         ndim = u0.ndim
         shape = u0.shape
@@ -152,7 +152,7 @@ class ImplicitPredictorCorrector(TimeIntegrator):
                             )
 
 
-@ register_integrator('rk2')
+@register_integrator('rk2')
 class RungeKuttaTVD2(TimeIntegrator):
     """
     2nd-order Runge-Kutta TVD time integrator proposed by Shu & Osher (1998).
@@ -179,8 +179,8 @@ class RungeKuttaTVD2(TimeIntegrator):
 
         self._loops_numba(unew, a, b, dt, u0, rhs_nonlinear, rhs_linear, forcing, noise)
 
-    @ staticmethod
-    @ nb.njit
+    @staticmethod
+    @nb.njit
     def _loops_numba(unew, a, b, dt, u0, rhs_nonlinear, rhs_linear, forcing, noise=None):
         ndim = u0.ndim
         shape = u0.shape
@@ -204,7 +204,7 @@ class RungeKuttaTVD2(TimeIntegrator):
                             )
 
 
-@ register_integrator('rk3')
+@register_integrator('rk3')
 class RungeKuttaTVD3(TimeIntegrator):
     """
     This is an stochastic extension, made by Delong et al. (2013, PRE), of the TVD RK3 proposed by Shu & Osher (1998).
@@ -241,8 +241,8 @@ class RungeKuttaTVD3(TimeIntegrator):
 
         self._loops_numba(unew, a, b, dt, dt_sqrt, u0, rhs_nonlinear, rhs_linear, forcing, noise)
 
-    @ staticmethod
-    @ nb.njit
+    @staticmethod
+    @nb.njit
     def _loops_numba(unew, a, b, dt, dt_sqrt, u0, rhs_nonlinear, rhs_linear, forcing, noise=None):
         ndim = u0.ndim
         shape = u0.shape
@@ -269,7 +269,7 @@ class RungeKuttaTVD3(TimeIntegrator):
                             )
 
 
-@ register_integrator('rk4')
+@register_integrator('rk4')
 class RungeKutta4(TimeIntegrator):
     """
     Standard low-storage 4th-order Runge-Kutta time integrator following Bogey & Bailly (2004).
@@ -292,8 +292,8 @@ class RungeKutta4(TimeIntegrator):
 
         self._loops_numba(unew, a, dt, u0, rhs_nonlinear, rhs_linear, forcing, noise)
 
-    @ staticmethod
-    @ nb.njit
+    @staticmethod
+    @nb.njit
     def _loops_numba(unew, a, dt, u0, rhs_nonlinear, rhs_linear, forcing, noise):
         ndim = u0.ndim
         shape = u0.shape

@@ -41,6 +41,8 @@ class Solver:
         Interval at which to write to file. Default is 100.
     dealias (str, optional):
         Dealising method to use. Options are '2/3' (truncation) and '3/2' (padding). Default is '3/2'.
+    mask_nyquist (bool, optional):
+        If True, set the Nyquist components to zeros. Default is False.
     fft_plan (str, optional):
         FFTW plan to use. Options are 'FFTW_ESTIMATE', 'FFTW_MEASURE', 'FFTW_PATIENT', 'FFTW_EXHAUSTIVE'. Default is 'FFTW_MEASURE'.
     decomposition (str, optional):
@@ -65,9 +67,10 @@ class Solver:
             write_solution: bool = False,
             file_name: str = None,
             file_mode: str = "w",
-            write_interval: int = 100,
+            write_interval: int = np.iinfo(np.int64).max,
             periodic: bool = False,
             dealias: str = "3/2",
+            mask_nyquist: bool = False,
             fft_plan: str = "FFTW_MEASURE",
             decomposition: str = "slab",
             optimization: bool = False
@@ -87,6 +90,7 @@ class Solver:
             noise_mag=noise_mag,
             domain=domain,
             dealias=dealias,
+            mask_nyquist=mask_nyquist,
             fft_plan=fft_plan,
             decomposition=decomposition
         )
