@@ -170,7 +170,7 @@ class SpaceSolver(FourierSpace):
         self.rhs_linear = sf.Function(self.V)
         self.rhs_nonlinear = sf.Function(self.V)
 
-    def initialize_velocity(self, u0: np.ndarray, space: str = 'physical'):
+    def initialize_velocity(self, u0: np.ndarray, space: str = 'physical', mask_zero_mode: bool = True):
         if space.casefold() == 'physical':
             if u0.shape != self.u.shape:
                 if self.mpi_rank == 0:
@@ -181,6 +181,7 @@ class SpaceSolver(FourierSpace):
                 )
             self.u[:] = u0
             self.forward()
+
         elif space.casefold() == 'fourier':
             if u0.shape != self.u_hat.shape:
                 if self.mpi_rank == 0:
@@ -189,7 +190,11 @@ class SpaceSolver(FourierSpace):
                     f"SpaceSolver.initialize_velocity: Invalid shape for the input Fourier velocity. "
                     f"Expected {self.u_hat.shape}, got {u0.shape}."
                 )
+
             self.u_hat[:] = u0
+            if mask_zero_mode:
+                self.u_hat *= self._k0_mask_0
+
             self.backward()
         else:
             raise ValueError("SpaceSolver.initialize_velocity: Invalid space type. Options are 'physical' or 'fourier'.")

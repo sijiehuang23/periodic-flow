@@ -62,7 +62,7 @@ class Solver:
             noise_type: str = "thermal",
             noise_mag: float = 0.0,
             domain: float | list | tuple = 2 * np.pi,
-            check_interval: int = 100,
+            check_interval: int = np.iinfo(np.int64).max,
             verbose: bool = False,
             write_solution: bool = False,
             file_name: str = None,
@@ -73,7 +73,7 @@ class Solver:
             mask_nyquist: bool = False,
             fft_plan: str = "FFTW_MEASURE",
             decomposition: str = "slab",
-            optimization: bool = False
+            optimization: bool = True
     ):
 
         self.comm = mpi.COMM_WORLD
@@ -154,8 +154,14 @@ class Solver:
         """Read configurations from a dictionary."""
         return cls(**config)
 
-    def initialize(self, u0: np.ndarray, space: str = 'physical', project: bool = False):
-        self.space_solver.initialize_velocity(u0, space)
+    def initialize(
+        self,
+        u0: np.ndarray,
+        space: str = 'physical',
+        project: bool = True,
+        mask_zero_mode: bool = True
+    ):
+        self.space_solver.initialize_velocity(u0, space, mask_zero_mode)
 
         if project:
             math.leray_projection(

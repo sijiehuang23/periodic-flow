@@ -22,15 +22,15 @@ class TimeIntegrator(ABC):
             optimization: bool = False
     ):
         self.dt = dt
-        self._L = linear_operator
+        self._lin_op = linear_operator
         self._optimization = optimization
 
         if linear_operator is not None:
-            self._Linv = 1 / (1 - self.dt / 2 * linear_operator)
+            self._lin_op_inv = 1 / (1 - self.dt / 2 * linear_operator)
 
     def update_linear_operator(self, L: np.ndarray):
-        self._L[:] = L
-        self._Linv[:] = 1 / (1 - self.dt / 2 * L)
+        self._lin_op[:] = L
+        self._lin_op_inv[:] = 1 / (1 - self.dt / 2 * L)
 
 
 @register_integrator('explicit_pc')
@@ -114,9 +114,9 @@ class ImplicitPredictorCorrector(TimeIntegrator):
         dt_sqrt = np.sqrt(0.5 * dt)
 
         if stage == self.n_stages - 1:
-            apply_linear_operator(rhs_linear, self._L, u0)
+            apply_linear_operator(rhs_linear, self._lin_op, u0)
 
-        unew[:] = self._Linv * (u0 + a * dt * (rhs_nonlinear + forcing) + b * dt * rhs_linear + dt_sqrt * noise)
+        unew[:] = self._lin_op_inv * (u0 + a * dt * (rhs_nonlinear + forcing) + b * dt * rhs_linear + dt_sqrt * noise)
 
     def _stepping_optimized(self, unew, u0, stage, rhs_nonlinear, rhs_linear, forcing, noise):
         a, b = self._increment_factor[stage]
@@ -124,13 +124,13 @@ class ImplicitPredictorCorrector(TimeIntegrator):
         dt_sqrt = np.sqrt(0.5 * dt)
 
         if stage == self.n_stages - 1:
-            apply_linear_operator(rhs_linear, self._L, u0)
+            apply_linear_operator(rhs_linear, self._lin_op, u0)
 
-        self._loops_numba(unew, self._Linv, dt, dt_sqrt, a, b, u0, rhs_nonlinear, rhs_linear, forcing, noise)
+        self._loops_numba(unew, self._lin_op_inv, dt, dt_sqrt, a, b, u0, rhs_nonlinear, rhs_linear, forcing, noise)
 
     @staticmethod
     @nb.njit
-    def _loops_numba(unew, Linv, dt, dt_sqrt, a, b, u0, rhs_nonlinear, rhs_linear, forcing, noise):
+    def _loops_numba(unew, lin_op_inv, dt, dt_sqrt, a, b, u0, rhs_nonlinear, rhs_linear, forcing, noise):
         ndim = u0.ndim
         shape = u0.shape
 
@@ -138,7 +138,7 @@ class ImplicitPredictorCorrector(TimeIntegrator):
             for i in range(shape[0]):
                 for j in range(shape[1]):
                     for k in range(shape[2]):
-                        unew[i, j, k] = Linv[j, k] * (
+                        unew[i, j, k] = lin_op_inv[j, k] * (
                             u0[i, j, k]
                             + a * dt * (rhs_nonlinear[i, j, k] + forcing[i, j, k])
                             + b * dt * rhs_linear[i, j, k]
@@ -150,7 +150,7 @@ class ImplicitPredictorCorrector(TimeIntegrator):
                 for j in range(shape[1]):
                     for k in range(shape[2]):
                         for l in range(shape[3]):
-                            unew[i, j, k, l] = Linv[j, k, l] * (
+                            unew[i, j, k, l] = lin_op_inv[j, k, l] * (
                                 u0[i, j, k, l]
                                 + a * dt * (rhs_nonlinear[i, j, k, l] + forcing[i, j, k, l])
                                 + b * dt * rhs_linear[i, j, k, l]
