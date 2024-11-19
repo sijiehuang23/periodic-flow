@@ -20,11 +20,22 @@ def parser_args(comm, rank):
     return comm.bcast(args, root=0)
 
 
+def initial_condition(shape, n, kBT):
+    dim = shape[0]
+    factor = n**(dim / 2) / kBT**0.5 / (2 - 2 / dim)
+
+    u0 = np.random.randn(*shape) + 1j * np.random.randn(*shape)
+    for i in range(dim):
+        u0[i] /= np.std(u0[i]) * factor
+
+    return u0
+
+
 def correlator(l, k, k2, dx):
     dim = k.shape[0]
     prefactor = (np.sqrt(2 * np.pi * l**2) / dx)**dim
 
-    C_l = np.zeros_like(k2)
+    C_l = np.ones_like(k2)
     if l > 1e-10:
         if dim == 2:
             kx, ky = k
@@ -61,20 +72,13 @@ if __name__ == '__main__':
         noise_mag=(2 * nu * kBT)**0.5
     )
 
-    if dim == 2:
-        shape = (dim, n, n // 2 + 1)
-    else:
-        shape = (dim, n, n, n // 2 + 1)
-
-    u0 = np.random.randn(*shape) + 1j * np.random.randn(*shape)
-    for i in range(dim):
-        u0[i] /= np.std(u0[i]) * n**(dim / 2) / kBT**0.5
+    shape = sol.shape_local_fourier
+    u0 = initial_condition(shape, n, kBT)
     sol.initialize(u0, 'fourier')
 
     args = parser_args(sol.comm, sol.mpi_rank)
-    l = args.L
     dx = sol.x[0][1] - sol.x[0][0]
-    C_l = correlator(l, sol.k, sol.k2, dx)
+    C_l = correlator(args.L, sol.k, sol.k2, dx)
     sol.set_linear_operator(-nu * C_l)
     sol.set_correlation_function(np.sqrt(C_l))
 
