@@ -1,5 +1,0 @@
-Metadata-Version: 2.1
-Name: periodicflow
-Version: 0.0.0
-Summary: A simple pseudo-spectral Fourier-Galerkin solver for incompressible Navier-Stokes equations
-Author: Sijie Huang
