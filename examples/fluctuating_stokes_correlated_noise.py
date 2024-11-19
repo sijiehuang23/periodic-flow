@@ -56,9 +56,7 @@ if __name__ == '__main__':
 
     n = 128
     dim = 2
-
-    nu = 800
-    kBT = 4
+    nu, kBT = 818.72, 4.2052
 
     sol = sim.Solver(
         [n] * dim,
