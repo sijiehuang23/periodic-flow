@@ -36,6 +36,10 @@ The following time integration schemes are provided for now:
     ```bash
     mpirun -np <number_of_processes> python <script_name>.py
     ```
+    For example, to run `examples/tgv.py`
+    ```bash
+    mpirun -np <number_of_processes> python examples/tgv.py
+    ```
 
 ### Uninstall
 

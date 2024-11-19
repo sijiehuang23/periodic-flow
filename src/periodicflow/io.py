@@ -81,7 +81,8 @@ class HDF5Writer:
                 ]
 
         except Exception as e:
-            raise RuntimeError(f"[Rank {rank}] get_dataset_info: {e}\n{traceback.format_exc()}")
+            logger.error(f"[Rank {rank}] get_dataset_info: {e}\n{traceback.format_exc()}")
+            comm.Abort(1)
 
         return {
             "variables": variables,
@@ -133,30 +134,14 @@ class HDF5Writer:
                         grp.create_dataset(step_format, shape=shape, dtype=np.float64)
 
         except Exception as e:
-            raise RuntimeError(f"[Rank {rank}] prepare_temp_file: {e}\n{traceback.format_exc()}")
+            logger.error(f"[Rank {rank}] prepare_temp_file: {e}\n{traceback.format_exc()}")
+            comm.Abort(1)
 
         comm.Barrier()
 
     def reconfigure_dataset(self):
         """
-        Reconfigure dataset structure determined by ShenfunFile.
-
-        Parameters
-        ----------
-        comm : mpi4py.MPI.Intracomm
-            MPI communicator.
-        rank : int
-            Rank of the current process.
-        size : int
-            Total number of processes.
-        file_name : str
-            Name of the input HDF5 file.
-        time_points : list of float
-            Initial and final time points.
-        periodic : bool, optional   
-            Whether to enforce periodic boundary conditions.
-        x_end : float, optional
-            The end value for periodicity, default is 2π.
+        Reconfigure/simplify dataset structure dictated by ShenfunFile.
         """
 
         comm = self.comm
@@ -164,12 +149,18 @@ class HDF5Writer:
         periodic = self.periodic
 
         if rank == 0:
-            logger.info("HDF5Writer.reconfigure_dataset: Start reconfiguring dataset ...")
+            logger.info("HDF5Writer.reconfigure_dataset: Start reconfiguring dataset.")
 
         input_file = Path(self.file_name).with_suffix(".h5")
         temp_file = Path(str(input_file).replace(".h5", "_temp.h5"))
-        if not input_file.exists():
-            raise FileNotFoundError(f"Solution file '{input_file}' does not exist.")
+
+        try:
+            if not input_file.exists():
+                raise FileNotFoundError(f"Solution file '{input_file}' does not exist.")
+        except FileNotFoundError as e:
+            if rank == 0:
+                logger.error(f"HDF5Writer.reconfigure_dataset: {e}")
+            comm.Abort(1)
 
         dataset_info = self._get_dataset_info(input_file)
         self._prepare_temp_file(input_file, temp_file, dataset_info)
@@ -198,7 +189,8 @@ class HDF5Writer:
                 temp_file.rename(input_file)
 
         except Exception as e:
-            raise RuntimeError(f"[Rank {rank}]: {e}\n{traceback.format_exc()}")
+            logger.error(f"[Rank {rank}] reconfigure_dataset: {e}\n{traceback.format_exc()}")
+            comm.Abort(1)
 
         if rank == 0:
             logger.info("HDF5Writer.reconfigure_dataset: Dataset reconfigured successfully.")

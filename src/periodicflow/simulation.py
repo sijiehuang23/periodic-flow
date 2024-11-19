@@ -1,10 +1,12 @@
 import numpy as np
 import mpi4py.MPI as mpi
+import traceback
 from . import math
 from .space_solver import SpaceSolver
 from .time_integrator import DICT_TIME_INTEGRATORS
 from .io import HDF5Writer
 from .utils import Timer
+from . import logger
 
 
 class Solver:
@@ -124,7 +126,9 @@ class Solver:
             self.time_integrator = DICT_TIME_INTEGRATORS[time_integrator](dt, self.space_solver.linear_operator, optimization)
 
         except Exception as e:
-            raise RuntimeError(f"Failed to initialize time integrator: {e}")
+            if self.mpi_rank == 0:
+                logger.error(f"Failed to initialize time integrator: {e}\n{traceback.format_exc()}")
+            self.comm.Abort(1)
 
     def _init_writer(self, file_name, periodic):
         if self.write_solution:
@@ -219,4 +223,3 @@ class Solver:
             self.solution_writer.close()
 
         self._timer.final()
-        self.comm.Barrier()

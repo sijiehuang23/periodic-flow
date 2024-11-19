@@ -9,7 +9,6 @@ def parser_args(comm, rank):
     try:
         if rank == 0:
             logger.info(f"Parsing arguments.")
-
             parser = argparse.ArgumentParser()
             parser.add_argument("L", default=0.0, help="Correlation length", type=float)
             args = parser.parse_args()
@@ -52,6 +51,11 @@ def correlator(l, k, k2, dx):
 if __name__ == '__main__':
     """
     This script solves for the fluctuating Stokes equation subject to spatially correlated noise.
+
+    To run the case, do 
+        ```bash
+        mpirun -np <nprocs> python fluctuating_stokes_correlated_noise.py --L <corr_length>
+        ```
     """
 
     n = 128
@@ -77,6 +81,7 @@ if __name__ == '__main__':
     args = parser_args(sol.comm, sol.mpi_rank)
     dx = sol.x[0][1] - sol.x[0][0]
     C_l = correlator(args.L, sol.k, sol.k2, dx)
+
     sol.set_linear_operator(-nu * C_l)
     sol.set_correlation_function(np.sqrt(C_l))
 

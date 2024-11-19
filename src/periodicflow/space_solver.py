@@ -118,8 +118,12 @@ class SpaceSolver(FourierSpace):
         super().__init__(comm, mpi_rank, N, **kwargs)
 
         if self.dim not in (2, 3):
-            logger.error("NS solver only supports 2D and 3D problems.")
-            raise ValueError("NS solver only supports 2D and 3D problems.")
+            try:
+                raise ValueError("NS solver only supports 2D and 3D problems.")
+            except ValueError as e:
+                if self.mpi_rank == 0:
+                    logger.error(str(e))
+                self.mpi_comm.Abort(1)
 
         self._is_nonlinear = is_nonlinear
         self.viscosity = viscosity
@@ -127,9 +131,12 @@ class SpaceSolver(FourierSpace):
         self.noise_type = noise_type
         self.noise_mag = noise_mag
         if self.noise_type not in ('thermal', 'correlated'):
-            if self.mpi_rank == 0:
-                logger.error("Invalid noise type. Options are 'thermal' or 'correlated'.")
-            raise ValueError("Invalid noise type. Options are 'thermal' or 'correlated'.")
+            try:
+                raise ValueError(f"Invalid noise type '{self.noise_type}'. Options are 'thermal' or 'correlated'.")
+            except ValueError as e:
+                if self.mpi_rank == 0:
+                    logger.error(str(e))
+                self.mpi_comm.Abort(1)
 
         self._define_variables()
 
@@ -173,23 +180,29 @@ class SpaceSolver(FourierSpace):
     def initialize_velocity(self, u0: np.ndarray, space: str = 'physical', mask_zero_mode: bool = True):
         if space.casefold() == 'physical':
             if u0.shape != self.u.shape:
-                if self.mpi_rank == 0:
-                    logger.error("SpaceSolver.initialize_velocity: Invalid shape for the input physical velocity.")
-                raise ValueError(
-                    f"SpaceSolver.initialize_velocity: Invalid shape for the input physical velocity. "
-                    f"Expected {self.u.shape}, got {u0.shape}."
-                )
+                try:
+                    raise ValueError(
+                        f"SpaceSolver.initialize_velocity: Invalid shape for the input physical velocity. "
+                        f"Expected {self.u.shape}, got {u0.shape}."
+                    )
+                except ValueError as e:
+                    if self.mpi_rank == 0:
+                        logger.error(str(e))
+                    self.mpi_comm.Abort(1)
             self.u[:] = u0
             self.forward()
 
         elif space.casefold() == 'fourier':
             if u0.shape != self.u_hat.shape:
-                if self.mpi_rank == 0:
-                    logger.error("SpaceSolver.initialize_velocity: Invalid shape for the input Fourier velocity.")
-                raise ValueError(
-                    f"SpaceSolver.initialize_velocity: Invalid shape for the input Fourier velocity. "
-                    f"Expected {self.u_hat.shape}, got {u0.shape}."
-                )
+                try:
+                    raise ValueError(
+                        f"SpaceSolver.initialize_velocity: Invalid shape for the input Fourier velocity. "
+                        f"Expected {self.u_hat.shape}, got {u0.shape}."
+                    )
+                except ValueError as e:
+                    if self.mpi_rank == 0:
+                        logger.error(str(e))
+                    self.mpi_comm.Abort(1)
 
             self.u_hat[:] = u0
             if mask_zero_mode:
