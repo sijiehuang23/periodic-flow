@@ -1,8 +1,8 @@
-# A simple Fourier-Galerkin pseudo-spectral Navier-Stokes solver
+# <tt>periodic-flow</tt>: A simple Fourier-Galerkin pseudo-spectral Navier-Stokes solver
 
 ## Introduction
 
-This code is designed to perform __direct numerical simulation__ (__DNS__) in periodic domains (homogeneous in all spatial directions). It solves for the incompressible Navier-Stokes equations using _Fourier Galerkin pseudo-spectral_ method [[1]](#ref1). The backbone of the code builds upon the <tt>Python</tt> package [shenfun](https://github.com/spectralDNS/shenfun), which takes care most of the heavy-lifting jobs (such as forward and inverse Fourier transform, parallelization, dealiasing, etc). The code uses `numba`-optimized functions to speedup simulation. 
+<tt>periodic-flow</tt> is designed to perform __direct numerical simulation__ (__DNS__) in periodic domains (homogeneous in all spatial directions). It solves for the incompressible Navier-Stokes equations using _Fourier Galerkin pseudo-spectral_ method [[1]](#ref1). The backbone of the code builds upon the <tt>Python</tt> package [shenfun](https://github.com/spectralDNS/shenfun), which takes care most of the heavy-lifting jobs (such as forward and inverse Fourier transform, parallelization, dealiasing, etc). The code uses `numba`-optimized functions to speedup simulation. 
 
 The code solves the incompressible fluctuating Navier-Stokes equations in both two and three dimensions. A noise term is included to model mesoscopic fluctuations, such as thermal fluctuations. Additionally, an external forcing term is added to sustain the flow in scenarios such as statistically steady turbulent flows.
 
@@ -14,24 +14,25 @@ The following time integration schemes are provided for now:
 
 ## Installation and usage 
 
-The only direct dependency of the code is the [shenfun](https://github.com/spectralDNS/shenfun) package. One can install via `conda` by 
-```bash
-conda install -c conda-forge shenfun
-```
-or `mamba`
-```bash
-mamba install -c conda-forge shenfun 
-```
-Dependencies of `shenfun` should be installed during the processes by `conda`/`mamba` automatically. 
-
-To use the code, simply add the `path` to the `PYTHONPATH`
-```bash
-export PYTHONPATH='$PYTHONPATH:/path/to/periodicflow/'
-```
-To run a simulation in parallel, do the following 
-```bash
-mpirun -np <number_of_processes> python <script_name>.py
-```
+1. Create a `mamba environment
+    ```bash
+    mamba create -n <env_name>
+    ```
+2. The only direct dependency of the code is the [shenfun](https://github.com/spectralDNS/shenfun) package. One can install via `mamba` by 
+    ```bash
+    mamba activate <env_name>
+    mamba install -c conda-forge shenfun # can also install using conda
+    ```
+    Dependencies of `shenfun` should be installed during the processes by `mamba` automatically. 
+3. To install the code, 
+    ```bash
+    cd /path/to/periodic-flow/
+    pip install -e . # Editable installation; remove -e for non-editable one
+    ```
+4. To run a simulation in parallel, do the following 
+    ```bash
+    mpirun -np <number_of_processes> python <script_name>.py
+    ```
 
 
 ## References
