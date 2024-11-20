@@ -31,6 +31,7 @@ if __name__ == '__main__':
         write_solution=True,
         file_name='thermal',
         write_interval=2,
+        noise_type='thermal',
         noise_mag=(2 * nu * kBT)**0.5
     )
 

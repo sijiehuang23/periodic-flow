@@ -34,7 +34,6 @@ def correlator(l, k, k2, dx):
     dim = k.shape[0]
     prefactor = (np.sqrt(2 * np.pi * l**2) / dx)**dim
 
-    C_l = np.ones_like(k2)
     if l > 1e-10:
         if dim == 2:
             kx, ky = k
@@ -42,6 +41,9 @@ def correlator(l, k, k2, dx):
         else:
             kx, ky, kz = k
             C_l = np.exp(-0.5 * ((l * kx)**2 + (l * ky)**2 + (l * kz**2))) * prefactor
+
+    else:
+        C_l = np.ones_like(k2)
 
     C_l *= np.where(k2 == 0, 0, 1)
 
@@ -54,11 +56,11 @@ if __name__ == '__main__':
 
     To run the case, do 
         ```bash
-        mpirun -np <nprocs> python fluctuating_stokes_correlated_noise.py --L <corr_length>
+        mpirun -np <nprocs> python fluctuating_stokes_correlated_noise.py <corr_length>
         ```
     """
 
-    n = 128
+    n = 64
     dim = 2
     nu, kBT = 818.72, 4.2052
 
@@ -67,10 +69,12 @@ if __name__ == '__main__':
         0.01,
         10,
         viscosity=nu,
+        is_nonlinear=False,
         time_integrator='implicit_pc',
         write_solution=True,
         file_name='correlated',
         write_interval=5,
+        noise_type='correlated',
         noise_mag=(2 * nu * kBT)**0.5
     )
 

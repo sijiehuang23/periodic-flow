@@ -22,7 +22,7 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
     handlers=[handler]
 )
-logger = logging.getLogger("isoFlow")
+logger = logging.getLogger("periodicflow")
 
 
 # def optimizer(func):
