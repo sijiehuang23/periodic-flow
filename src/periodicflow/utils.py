@@ -1,6 +1,5 @@
 import numpy as np
 import time
-from datetime import datetime
 import mpi4py.MPI as mpi
 from periodicflow import logger
 
