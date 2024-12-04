@@ -19,7 +19,7 @@ class TimeIntegrator(ABC):
             self,
             dt: float,
             linear_operator: np.ndarray = None,
-            optimization: bool = False
+            optimization: bool = True
     ):
         self.dt = dt
         self._lin_op = linear_operator
@@ -39,7 +39,7 @@ class ExplicitPredictorCorrector(TimeIntegrator):
     This is a 2-stage explicit predictor-corrector time integrator proposed by Delong et al. (2013, PRE)
     """
 
-    def __init__(self, dt: float, linear_operator: np.ndarray, optimization=False):
+    def __init__(self, dt: float, linear_operator: np.ndarray, optimization=True):
         super().__init__(dt, linear_operator, optimization)
 
         self.n_stages = 2
@@ -96,7 +96,7 @@ class ImplicitPredictorCorrector(TimeIntegrator):
     This is a 2-stage implicit predictor-corrector time integrator proposed by Delong et al. (2013, PRE)
     """
 
-    def __init__(self, dt: float, linear_operator: np.ndarray, optimization=False):
+    def __init__(self, dt: float, linear_operator: np.ndarray, optimization=True):
         super().__init__(dt, linear_operator, optimization)
 
         self.n_stages = 2
@@ -164,7 +164,7 @@ class RungeKuttaTVD2(TimeIntegrator):
     2nd-order Runge-Kutta TVD time integrator proposed by Shu & Osher (1998).
     """
 
-    def __init__(self, dt: float, linear_operator: np.ndarray, optimization=False):
+    def __init__(self, dt: float, linear_operator: np.ndarray, optimization=True):
         super().__init__(dt, linear_operator, optimization)
 
         self.n_stages = 2
@@ -216,7 +216,7 @@ class RungeKuttaTVD3(TimeIntegrator):
     This is an stochastic extension, made by Delong et al. (2013, PRE), of the TVD RK3 proposed by Shu & Osher (1998).
     """
 
-    def __init__(self, dt: float, linear_operator: np.ndarray, optimization=False):
+    def __init__(self, dt: float, linear_operator: np.ndarray, optimization=True):
         super().__init__(dt, linear_operator, optimization)
 
         self.n_stages = 3
@@ -281,7 +281,7 @@ class RungeKutta4(TimeIntegrator):
     Standard low-storage 4th-order Runge-Kutta time integrator following Bogey & Bailly (2004).
     """
 
-    def __init__(self, dt: float, linear_operator: np.ndarray, optimization=False):
+    def __init__(self, dt: float, linear_operator: np.ndarray, optimization=True):
         super().__init__(dt, linear_operator, optimization)
 
         self.n_stages = 4

@@ -2,6 +2,7 @@ from pathlib import Path
 import numpy as np
 import h5py
 import mpi4py.MPI as mpi
+import json
 import traceback
 from periodicflow import logger
 from .utils import periodic_bc
@@ -12,39 +13,152 @@ except ImportError:
     raise ImportError('shenfun is required for this module')
 
 
+class Params:
+    def __init__(self, json_file='input.json'):
+        self._load_json(json_file)
+        self._check_compatibility()
+
+    def __repr__(self):
+        return f"<Params {self.__dict__}>"
+
+    def _load_json(self, json_file):
+        """Load JSON file and set attributes."""
+        try:
+            with open(json_file, 'r') as file:
+                data = json.load(file)
+            self._read_params(data)
+        except Exception as e:
+            raise ValueError(f"Error reading JSON file {json_file}: {e}")
+
+    def _read_params(self, data):
+        defaults = {
+            'N': [256, 256],
+            'domain': [[0, 2 * np.pi], [0, 2 * np.pi]],
+            'dt': 0.01,
+            'end_time': 1.0,
+            'enable_nonlinear': False,
+            'time_integrator': 'rk3',
+            'viscosity': 1e-2,
+            'noise_type': 'thermal',
+            'noise_mag': 0.0,
+            'filter_noise': False,
+            'optimization': True,
+            'verbose': False,
+            'check_interval': np.iinfo(np.int64).max,
+            'write_data': False,
+            'file_name': 'data',
+            'write_interval': np.iinfo(np.int64).max,
+            'write_mode': 'w',
+            'enforce_periodic': True,
+            'write_restart': False,
+            'restart_name': 'restart',
+            'restart_interval': np.iinfo(np.int64).max,
+            'restart_mode': 'w',
+            'dealias': '3/2',
+            'mask_nyquist': True,
+            'fft_plan': 'FFTW_MEASURE',
+            'decomposition': 'slab',
+        }
+
+        for key, default in defaults.items():
+            setattr(self, key, data.get(key, default))
+
+    def _check_compatibility(self):
+        """Check compatibility between related parameters."""
+        if len(self.N) != len(self.domain):
+            raise ValueError("The length of N must match the number of domain dimensions.")
+
+    def print(self):
+        """Print the parameters in a human-readable format."""
+        import pprint
+        pprint.pprint(self.__dict__)
+
+    def update(self, params):
+        """Update parameters from a dictionary."""
+        for key, value in params.items():
+            if hasattr(self, key):
+                setattr(self, key, value)
+            else:
+                raise ValueError(f"Invalid parameter: {key}")
+
+    def docs(self):
+        """Print documentation for all parameters."""
+        docs = {
+            "N": "Number of grid points in each dimension, e.g., [Nx, Ny].",
+            "domain": "Domain size for each dimension, e.g., [[xmin, xmax], [ymin, ymax]].",
+            "dt": "Time step for integration.",
+            "end_time": "Simulation end time.",
+            "enable_nonlinear": "Enable or disable nonlinear terms.",
+            "viscosity": "Viscosity of the fluid.",
+            "noise_type": "Type of noise to add to the system. Options: 'thermal', 'correlated'.",
+            "noise_mag": "Magnitude of the noise.",
+            "filter_noise": "Wether filter noise or not.",
+            "optimization": "Enable or disable numba-jit optimization.",
+            "verbose": "Enable or disable verbose output.",
+            "check_interval": "Interval for checking the solution.",
+            "write_data": "Write velocity data to file.",
+            "file_name": "Name of the output file.",
+            "write_interval": "Interval for writing data to file.",
+            "write_mode": "Write mode for the output file.",
+            "enforce_periodic": "Enforce periodic boundary conditions.",
+            "write_restart": "Write restart data to file.",
+            "restart_name": "Name of the restart file.",
+            "restart_interval": "Interval for writing restart data to file.",
+            "restart_mode": "Write mode for the restart file.",
+            "dealias": "Dealiasing factor for the nonlinear terms.",
+            "mask_nyquist": "Mask the Nyquist frequency.",
+            "fft_plan": "FFT plan for the FFTW library.",
+            "decomposition": "Decomposition strategy for parallelization."
+        }
+        for key, doc in docs.items():
+            print(f"{key}: {doc}")
+
+
 class HDF5Writer:
     def __init__(
         self,
-        comm: mpi.Comm,
-        rank: int,
-        size: int,
-        file_name: str,
-        solution: dict = {},
-        time_points: list = [0.0, 1.0],
-        end_points: list = [2 * np.pi, 2 * np.pi],
-        periodic: bool = False,
+        mpi_comm: mpi.Comm,
+        mpi_rank: int,
+        mpi_size: int,
+        params: Params,
+        solution_data: dict = {},
+        restart_data: dict = {},
+        time_points: list = [0.0, 1.0]
     ):
-        self.comm = comm
-        self.mpi_rank = rank
-        self.mpi_size = size
-        self.file_name = file_name
-        self.solution = solution
+        self.mpi_comm = mpi_comm
+        self.mpi_rank = mpi_rank
+        self.mpi_size = mpi_size
+        self.file_name = params.file_name
+        self.restart_name = params.restart_name
+        self.solution_data = solution_data
+        self.restart_data = restart_data
         self.time_points = time_points
-        self.end_points = end_points
-        self.periodic = periodic
+        self.end_points = [x_end for _, x_end in params.domain]
+        self.periodic = params.enforce_periodic
 
         self.solution_file = sf.ShenfunFile(
             self.file_name,
-            self.solution['space'],
+            self.solution_data['space'],
+            mode='w'
+        )
+        self.restart_file = sf.ShenfunFile(
+            self.restart_name,
+            self.restart_data['space'],
             mode='w'
         )
 
-    def write(self, step: int):
-        self.solution_file.write(step, self.solution['data'], as_scalar=True)
+    def write_data(self, step: int):
+        self.solution_file.write(step, self.solution_data['data'], as_scalar=True)
+
+    def write_restart(self, step: int):
+        self.restart_file.write(step, self.restart_data['data'])
 
     def close(self):
         if self.solution_file.f:
             self.solution_file.close()
+
+        if self.restart_file.f:
+            self.restart_file.close()
 
     @staticmethod
     def _distribute_steps(rank: int, size: int, steps: list):
@@ -58,12 +172,12 @@ class HDF5Writer:
         Get information about the dataset structure.
         """
 
-        comm = self.comm
+        mpi_comm = self.mpi_comm
         rank = self.mpi_rank
         size = self.mpi_size
 
         try:
-            with h5py.File(input_file, 'r', driver='mpio', comm=comm) as f:
+            with h5py.File(input_file, 'r', driver='mpio', comm=mpi_comm) as f:
                 variables = list(f)
                 str_dim = next(iter(f[variables[0]]), None)
                 ndims = {"3d": 3, "2d": 2}.get(str_dim.lower(), 0)
@@ -82,7 +196,7 @@ class HDF5Writer:
 
         except Exception as e:
             logger.error(f"[Rank {rank}] get_dataset_info: {e}\n{traceback.format_exc()}")
-            comm.Abort(1)
+            mpi_comm.Abort(1)
 
         return {
             "variables": variables,
@@ -104,14 +218,14 @@ class HDF5Writer:
         Prepare temporary HDF5 file for reconfiguring dataset structure.
         """
 
-        comm = self.comm
+        mpi_comm = self.mpi_comm
         rank = self.mpi_rank
         time_points = self.time_points
         end_points = self.end_points
 
         try:
-            with h5py.File(input_file, 'r', driver='mpio', comm=comm) as fr, \
-                    h5py.File(temp_file, 'w', driver='mpio', comm=comm) as fw:
+            with h5py.File(input_file, 'r', driver='mpio', comm=mpi_comm) as fr, \
+                    h5py.File(temp_file, 'w', driver='mpio', comm=mpi_comm) as fw:
 
                 variables = dataset_info["variables"]
                 ndims = dataset_info["ndims"]
@@ -135,16 +249,16 @@ class HDF5Writer:
 
         except Exception as e:
             logger.error(f"[Rank {rank}] prepare_temp_file: {e}\n{traceback.format_exc()}")
-            comm.Abort(1)
+            mpi_comm.Abort(1)
 
-        comm.Barrier()
+        mpi_comm.Barrier()
 
     def reconfigure_dataset(self):
         """
         Reconfigure/simplify dataset structure dictated by ShenfunFile.
         """
 
-        comm = self.comm
+        mpi_comm = self.mpi_comm
         rank = self.mpi_rank
         periodic = self.periodic
 
@@ -160,14 +274,14 @@ class HDF5Writer:
         except FileNotFoundError as e:
             if rank == 0:
                 logger.error(f"HDF5Writer.reconfigure_dataset: {e}")
-            comm.Abort(1)
+            mpi_comm.Abort(1)
 
         dataset_info = self._get_dataset_info(input_file)
         self._prepare_temp_file(input_file, temp_file, dataset_info)
 
         try:
-            with h5py.File(input_file, 'r', driver='mpio', comm=comm) as fr, \
-                    h5py.File(temp_file, 'a', driver='mpio', comm=comm) as fw:
+            with h5py.File(input_file, 'r', driver='mpio', comm=mpi_comm) as fr, \
+                    h5py.File(temp_file, 'a', driver='mpio', comm=mpi_comm) as fw:
 
                 variables = dataset_info["variables"]
                 local_steps = dataset_info["local_steps"]
@@ -181,16 +295,16 @@ class HDF5Writer:
                         if periodic:
                             data = periodic_bc(data)
                         step_name = str(step).zfill(n_digits)
-                        grp[step_name][...] = data
+                        grp[step_name].write_direct(data)
 
-            comm.Barrier()
+            mpi_comm.Barrier()
             if rank == 0:
                 input_file.unlink()
                 temp_file.rename(input_file)
 
         except Exception as e:
             logger.error(f"[Rank {rank}] reconfigure_dataset: {e}\n{traceback.format_exc()}")
-            comm.Abort(1)
+            mpi_comm.Abort(1)
 
         if rank == 0:
             logger.info("HDF5Writer.reconfigure_dataset: Dataset reconfigured successfully.")

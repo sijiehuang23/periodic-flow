@@ -21,7 +21,7 @@ def parser_args(comm, rank):
 
 def initial_condition(shape, n, kBT):
     dim = shape[0]
-    factor = n**(dim / 2) / kBT**0.5 / (2 - 2 / dim)
+    factor = n**(dim / 2) / kBT**0.5 * np.sqrt(1 - 1 / dim)
 
     u0 = np.random.randn(*shape) + 1j * np.random.randn(*shape)
     for i in range(dim):
@@ -56,38 +56,21 @@ if __name__ == '__main__':
 
     To run the case, do 
         ```bash
-        mpirun -np <nprocs> python fluctuating_stokes_correlated_noise.py <corr_length>
+        mpirun -np <nprocs> python main.py <corr_length>
         ```
     """
+    sol = sim.Solver()
 
-    n = 64
-    dim = 2
-    nu, kBT = 818.72, 4.2052
-
-    sol = sim.Solver(
-        [n] * dim,
-        0.01,
-        10,
-        viscosity=nu,
-        is_nonlinear=False,
-        time_integrator='implicit_pc',
-        write_solution=True,
-        file_name='correlated',
-        write_interval=5,
-        noise_type='correlated',
-        noise_mag=(2 * nu * kBT)**0.5
-    )
-
-    shape = sol.shape_local_fourier
-    u0 = initial_condition(shape, n, kBT)
+    shape = sol.local_shape_fourier
+    u0 = initial_condition(shape, sol.params.N[0], 4.2052)
     sol.initialize(u0, 'fourier')
 
-    args = parser_args(sol.comm, sol.mpi_rank)
+    args = parser_args(sol.mpi_comm, sol.mpi_rank)
     dx = sol.x[0][1] - sol.x[0][0]
     C_l = correlator(args.L, sol.k, sol.k2, dx)
 
-    sol.set_linear_operator(-nu * C_l)
-    sol.set_correlation_function(np.sqrt(C_l))
+    sol.set_linear_operator(-sol.params.viscosity * C_l)
+    sol.set_noise_correlation(np.sqrt(C_l))
 
     sol.solve()
-    sol.solution_writer.reconfigure_dataset()
+    sol.data_writer.reconfigure_dataset()

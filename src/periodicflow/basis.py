@@ -13,7 +13,7 @@ class FourierSpace:
 
     Parameters
     ----------
-    comm : mpi.Comm
+    mpi_comm : mpi.Comm
         MPI communicator.
     mpi_rank : int
         MPI rank.
@@ -28,12 +28,12 @@ class FourierSpace:
     fft_plan : str, optional
         FFT planner effort. Default is 'FFTW_MEASURE'. Choices are 'FFTW_ESTIMATE', 'FFTW_MEASURE', 'FFTW_PATIENT', 'FFTW_EXHAUSTIVE'.
     decomposition : str, optional
-        Parallel decomposition strategy. Options are 'slab' or 'pencil'. Default is 'slab'.
+        Parallel decomposition strategy. Options are 'slab' (1D) or 'pencil' (2D). Default is 'slab'.
     """
 
     def __init__(
         self,
-        comm: mpi.Comm,
+        mpi_comm: mpi.Comm,
         mpi_rank: int,
         N: list | tuple,
         domain: float | list | tuple = 2 * np.pi,
@@ -42,7 +42,7 @@ class FourierSpace:
         fft_plan: str = 'FFTW_MEASURE',
         decomposition: str = 'slab'
     ):
-        self.comm = comm
+        self.mpi_comm = mpi_comm
         self.mpi_rank = mpi_rank
         self.N = N
         self.dim = len(self.N)
@@ -60,8 +60,17 @@ class FourierSpace:
             raise ValueError("Input domain must be either float, list or tuple.")
 
         dtype = [np.float64 if i == self.dim - 1 else np.complex128 for i in range(self.dim)]
-        F = [sf.FunctionSpace(n, 'F', domain=self.domain[i], dtype=dtype[i]) for i, n in enumerate(self.N)]
-        S = sf.TensorProductSpace(self.comm, F, dtype=np.float64, slab=(decomposition == 'slab'), planner_effort=fft_plan)
+        F = [
+            sf.FunctionSpace(n, 'F', domain=self.domain[i], dtype=dtype[i])
+            for i, n in enumerate(self.N)
+        ]
+        S = sf.TensorProductSpace(
+            self.mpi_comm,
+            F,
+            dtype=np.float64,
+            slab=(decomposition == 'slab'),
+            planner_effort=fft_plan
+        )
         k = S.local_wavenumbers(scaled=True, broadcast=True)
 
         self.S = S

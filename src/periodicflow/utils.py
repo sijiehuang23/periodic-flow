@@ -1,6 +1,7 @@
 import numpy as np
 import time
 import mpi4py.MPI as mpi
+import shenfun as sf
 from periodicflow import logger
 
 
@@ -31,7 +32,6 @@ class Timer:
         self.mpi_size = comm.Get_size()
         self.verbose = verbose
 
-        # self.start_wall_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         self.start_time = time.time()
         self.t0 = self.start_time
 
@@ -51,7 +51,7 @@ class Timer:
         dt_avg = dt_sum / self.mpi_size
 
         if self.verbose and self.mpi_rank == 0:
-            logger.info(f"Step = {step:08d}, time = {simulation_time:.2e}, runtime since last check = {self._format_time(dt_avg, 'hh:mm:ss')}")
+            logger.info(f"Step = {step:08d}, time = {simulation_time:.2e}, runtime since last check = {self._format_time(dt_avg, 'mm:ss')}")
 
         self.comm.Barrier()
 
@@ -62,14 +62,13 @@ class Timer:
 
     def final(self):
         """Print the final timing information."""
-        # end_wall_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         runtime = time.time() - self.start_time
 
         runtime_sum = self.comm.allreduce(runtime, op=mpi.SUM)
         runtime_avg = runtime_sum / self.mpi_size
 
         if self.mpi_rank == 0:
-            logger.info(f"Simulation completed. Total run time: {self._format_time(runtime_avg)}")
+            logger.info(f"Simulation completed. Total run time: {self._format_time(runtime_avg, 'hh:mm:ss')}")
 
     @staticmethod
     def _format_time(seconds: float, format='dd-hh:mm:ss') -> str:

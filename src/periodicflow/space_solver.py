@@ -1,6 +1,7 @@
 import numpy as np
 import numba as nb
 import mpi4py.MPI as mpi
+from .io import Params
 from .basis import FourierSpace
 from .math import cross, curl, apply_linear_operator, leray_projection
 from periodicflow import logger
@@ -70,33 +71,12 @@ class SpaceSolver(FourierSpace):
 
     Parameters
     ----------
-    comm : mpi.Comm
+    mpi_comm : mpi.Comm
         MPI communicator used for parallel processing.
     mpi_rank : int
         Rank of the current processor.
-    N : list or tuple of int
-        Number of grid points in each direction.
-    is_nonlinear : bool, optional
-        Whether to include the nonlinear term in the Navier-Stokes equations. Default is True.
-    viscosity : float, optional
-        Kinematic viscosity of the fluid. Default is 1e-3.
-    noise_type : str, optional
-        Type of noise to apply. Options are 'thermal' or 'correlated'. Default is 'thermal'.
-    noise_mag : float, optional
-        Magnitude of the noise. Default is 0.0 (no noise).
-    **kwargs
-        Additional keyword arguments passed to the parent class `FourierSpace`:
-
-        - domain (float or list or tuple, optional)
-            Domain size in each direction. Default is `2 * np.pi`.
-        - dealias (str, optional)
-            Dealiasing rule for Fourier transforms. Options are '2/3'/'truncate' (truncation) or '3/2'/'pad' (zero-padding). Default is '3/2'.
-        - mask_nyquist (bool, optional)
-            Whether to mask the Nyquist components setting them to zero. Default is False. 
-        - fft_plan (str, optional)
-            FFT planner effort, e.g., 'FFTW_MEASURE' for efficient computation. Default is 'FFTW_MEASURE'.
-        - decomposition (str, optional)
-            Parallel decomposition strategy. Options are 'slab' or 'pencil'. Default is 'slab'.
+    params : Params
+        Object containing the simulation parameters.
 
     Notes
     -----
@@ -106,30 +86,37 @@ class SpaceSolver(FourierSpace):
 
     def __init__(
         self,
-        comm: mpi.Comm,
+        mpi_comm: mpi.Comm,
         mpi_rank: int,
-        N: list | tuple,
-        is_nonlinear: bool = True,
-        viscosity: float = 1e-3,
-        noise_type: str = 'thermal',
-        noise_mag: float = 0.0,
-        **kwargs
+        params: Params,
     ):
-        super().__init__(comm, mpi_rank, N, **kwargs)
+        super().__init__(
+            mpi_comm,
+            mpi_rank,
+            params.N,
+            domain=params.domain,
+            dealias=params.dealias,
+            mask_nyquist=params.mask_nyquist,
+            fft_plan=params.fft_plan,
+            decomposition=params.decomposition
+        )
 
         if self.dim not in (2, 3):
             try:
-                raise ValueError("NS solver only supports 2D and 3D problems.")
+                raise ValueError("NS equation has to be in either 2D or 3D.")
             except ValueError as e:
                 if self.mpi_rank == 0:
-                    logger.error(str(e))
+                    logger.critical(str(e))
                 self.mpi_comm.Abort(1)
 
-        self._is_nonlinear = is_nonlinear
-        self.viscosity = viscosity
+        self.cached_array = sf.CachedArrayDict()
 
-        self.noise_type = noise_type
-        self.noise_mag = noise_mag
+        self._enable_nonlinear = params.enable_nonlinear
+        self.viscosity = params.viscosity
+
+        self.noise_type = params.noise_type
+        self.noise_mag = params.noise_mag
+        self._filter_noise = params.filter_noise
         if self.noise_type not in ('thermal', 'correlated'):
             try:
                 raise ValueError(f"Invalid noise type '{self.noise_type}'. Options are 'thermal' or 'correlated'.")
@@ -140,22 +127,24 @@ class SpaceSolver(FourierSpace):
 
         self._define_variables()
 
+        self.local_shape_physical = self.u.shape
+        self.local_shape_fourier = self.u_hat.shape
+
         self._k0_mask_0 = np.where(self.k2 == 0, 0, 1)
-        self._prod_n_sqrt = np.sqrt(np.prod(N))
+        self._prod_n_sqrt = np.sqrt(np.prod(params.N))
         self._noise_normal_factor = self._k0_mask_0 / self._prod_n_sqrt / np.sqrt(2 - 2 / self.dim)
 
-        self.linear_operator = -viscosity * self.k2
+        self.linear_operator = -params.viscosity * self.k2
         self.correlation_func = sf.Function(self.S)
-
-        self.cached_array = sf.CachedArrayDict()
+        self.filter_kernel = sf.Function(self.S)
+        self.filter_kernel[:] = 1.0
 
     def _define_variables(self):
         self.u = sf.Array(self.V)
         self.u_hat = sf.Function(self.V)
         self.u_dealias = sf.Array(self.Vp)
 
-        self.shape_local_physical = self.u.shape
-        self.shape_local_fourier = self.u_hat.shape
+        self._uw = self.cached_array[(self.u_dealias, 0, True)]
 
         self.p = sf.Array(self.S)
         self.p_hat = sf.Function(self.S)
@@ -177,17 +166,16 @@ class SpaceSolver(FourierSpace):
         self.rhs_linear = sf.Function(self.V)
         self.rhs_nonlinear = sf.Function(self.V)
 
-    def initialize_velocity(self, u0: np.ndarray, space: str = 'physical', mask_zero_mode: bool = True):
+    def _initialize(self, u0: np.ndarray, space: str = 'physical', mask_zero_mode: bool = True):
         if space.casefold() == 'physical':
             if u0.shape != self.u.shape:
                 try:
                     raise ValueError(
-                        f"SpaceSolver.initialize_velocity: Invalid shape for the input physical velocity. "
-                        f"Expected {self.u.shape}, got {u0.shape}."
+                        f"Invalid shape for the input velocity. Expected {self.u.shape}, got {u0.shape}."
                     )
                 except ValueError as e:
                     if self.mpi_rank == 0:
-                        logger.error(str(e))
+                        logger.critical(str(e))
                     self.mpi_comm.Abort(1)
             self.u[:] = u0
             self.forward()
@@ -196,33 +184,32 @@ class SpaceSolver(FourierSpace):
             if u0.shape != self.u_hat.shape:
                 try:
                     raise ValueError(
-                        f"SpaceSolver.initialize_velocity: Invalid shape for the input Fourier velocity. "
-                        f"Expected {self.u_hat.shape}, got {u0.shape}."
+                        f"Invalid shape for the input velocity. Expected {self.u_hat.shape}, got {u0.shape}."
                     )
                 except ValueError as e:
                     if self.mpi_rank == 0:
-                        logger.error(str(e))
+                        logger.critical(str(e))
                     self.mpi_comm.Abort(1)
 
             self.u_hat[:] = u0
-            if mask_zero_mode:
-                self.u_hat *= self._k0_mask_0
-
             self.backward()
         else:
             raise ValueError("SpaceSolver.initialize_velocity: Invalid space type. Options are 'physical' or 'fourier'.")
+
+        if mask_zero_mode:
+            self.u_hat *= self._k0_mask_0
 
     def forward(self):
         """
         Call the forward transform from the vector space in space_solver 
         """
-        self.V.forward(self.u, self.u_hat)
+        self.u_hat = self.V.forward(self.u, self.u_hat)
 
     def backward(self):
         """
         Call the backward transform from the vector space in space_solver
         """
-        self.V.backward(self.u_hat, self.u)
+        self.u = self.V.backward(self.u_hat, self.u)
 
     def random_fields(self):
         """
@@ -251,6 +238,9 @@ class SpaceSolver(FourierSpace):
         leray_projection(self.noise, self.k, self.k_over_k2, self.p_hat)
         self.noise *= self.noise_mag
 
+        if self._filter_noise:
+            apply_linear_operator(self.noise, self.filter_kernel, self.noise)
+
     def thermal_noise(self):
         """
         Generate thermal noise field.
@@ -259,41 +249,32 @@ class SpaceSolver(FourierSpace):
         _noise_divergence(self.noise, self.w_hat_sym, self.k)
 
     def correlated_noise(self):
-        """
-        Generate spatially correlated noise field.
-        """
+        """Generate spatially correlated noise field."""
         apply_linear_operator(self.noise, self.correlation_func, self.w_hat)
 
     def add_forcing(self):
-        """
-        Generate external forcing field.
-        """
+        """Generate external forcing field."""
         pass
 
     def compute_rhs_linear(self):
-        """
-        Compute the linear part of the right-hand side.
-        """
+        """Compute the linear part of the right-hand side."""
         apply_linear_operator(self.rhs_linear, self.linear_operator, self.u_hat)
 
     def compute_vorticity(self):
-        """
-        Compute the vorticity field in Fourier space.
-        """
+        """Compute the vorticity field in Fourier space."""
         curl(self.vort_hat, self.k, self.u_hat)
-        self.Wp.backward(self.vort_hat, self.vort_dealias)
+        self.vort_dealias = self.Wp.backward(self.vort_hat, self.vort_dealias)
 
     def compute_rhs_nonlinear(self):
         """
         Compute the nonlinear part of the right-hand side.
         """
         self.compute_vorticity()
-        self.Vp.backward(self.u_hat, self.u_dealias)
+        self.u_dealias = self.Vp.backward(self.u_hat, self.u_dealias)
 
-        uw = self.cached_array[(self.u_dealias, 0, False)]
-        cross(uw, self.u_dealias, self.vort_dealias)
+        cross(self._uw, self.u_dealias, self.vort_dealias)
 
-        self.Vp.forward(uw, self.rhs_nonlinear)
+        self.rhs_nonlinear = self.Vp.forward(self._uw, self.rhs_nonlinear)
         leray_projection(self.rhs_nonlinear, self.k, self.k_over_k2, self.p_hat)
 
         if self.nyquist_mask is not None:
@@ -304,7 +285,7 @@ class SpaceSolver(FourierSpace):
         Assemble the overall right-hand side.
         """
         self.compute_rhs_linear()
-        if self._is_nonlinear:
+        if self._enable_nonlinear:
             self.compute_rhs_nonlinear()
         self.add_noise(a)
         self.add_forcing()
