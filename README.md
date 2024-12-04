@@ -2,22 +2,22 @@
 
 ## Introduction
 
-`periodicflow` is a simple code designed to perform __direct numerical simulation__ (__DNS__) in periodic domains, which indicates that flow being statistically homogeneous in all spatial directions (such as isotropic turbulence). It solves the incompressible Navier-Stokes equations using a _Fourier Galerkin pseudo-spectral_ method [(Canuto _et al._, 2007)](#CQHZ2007) in both two and three dimensions. The backbone of the code is built upon the Python package [shenfun](https://github.com/spectralDNS/shenfun) [(Mortensen, 2018)](#Mor2018), which handles most of the heavy-lifting tasks (such as forward and inverse Fourier transforms, MPI parallelization, dealiasing, I/O, etc). The code also leverages Numba-optimized functions to accelerate simulations. 
+`periodicflow` is a simple Python code designed to perform __direct numerical simulation__ (__DNS__) in periodic domains, which indicates that flow being statistically homogeneous in all spatial directions (such as homogeneous isotropic turbulence). It solves the incompressible Navier-Stokes equations using a _Fourier Galerkin pseudo-spectral_ method [(Canuto _et al._, 2007)](#CQHZ2007) in both two and three dimensions. The backbone of the code is built upon the Python package [shenfun](https://github.com/spectralDNS/shenfun) [(Mortensen, 2018)](#Mor2018), which handles most of the heavy-lifting tasks (such as forward and inverse Fourier transforms, MPI parallelization, dealiasing, I/O, etc). The code also leverages Numba-optimized functions to accelerate simulations. 
 
 
 ## Governing equations and numerical methods 
 
-The code solves the incompressible fluctuating Navier-Stokes equations in both two and three dimensions. A noise term is included to model mesoscopic fluctuations, such as thermal fluctuations. Additionally, an external forcing term is incorporated to sustain the flow in scenarios like statistically steady turbulent flows.
+The code solves the fluctuating incompressible Navier-Stokes equations in both two and three dimensions. A noise term is included to model mesoscopic fluctuations, such as thermal fluctuations. Additionally, an external forcing term is incorporated to sustain the flow in scenarios like statistically steady turbulent flows. As stated in the introduction, the nonlinear term is evaluated pseudo-spectrally; that is, the nonlinear product is first computed in physical space and then transformed into Fourier space. 
 
 The following time integration schemes are provided for now:
 1. An explicit and an implicit predictor-corrector schemes designed for Langevin-type of equations [(Delong _et al._, 2013)](#DGED2013)
-2. Second and third-order TVD RK schemes by [Gottlieb & Shu (1998)](#GS1998). The 3rd-order version is modified in [Delong _et al._ (2013)](#DGED2013) to account for stochastic terms.
-3. A low-storage 4th-order RK scheme provided by [Bogey & Bailly (2004)](#BB2004)
+2. Second and third-order TVD RK schemes by [Gottlieb & Shu (1998)](#GS1998). The 3rd-order version is modified in [Delong _et al._ (2013)](#DGED2013) to account for additive stochastic terms.
+3. A low-storage standard 4th-order RK scheme provided by [Bogey & Bailly (2004)](#BB2004)
 
 
 ## Installation and usage 
 
-1. The only direct dependency of the code are [shenfun](https://github.com/spectralDNS/shenfun) and `rich` (for formatting logging purpose). One can install via `mamba` (or `conda` as well) by 
+1. The only direct dependency of the code are [shenfun](https://github.com/spectralDNS/shenfun) and `rich` (for formatting logging purpose). One can install via `mamba` (or `conda`) by 
     ```bash
     mamba create -n <env_name> -c conda-forge shenfun rich 
     mamba activate <env_name>
@@ -26,15 +26,15 @@ The following time integration schemes are provided for now:
 2. To install the code, 
     ```bash
     cd /path/to/periodic-flow/
-    pip install -e . # Editable installation; remove -e for non-editable one
+    pip install -e . # Editable installation; remove -e for non-editable installation
     ```
-3. To run a simulation in parallel, do the following 
+3. To run a simulation in parallel, simply do the following 
     ```bash
     mpirun -np <number_of_processes> python <script_name>.py
     ```
-    For example, to run `examples/tgv.py`
+    For example, to run `examples/2d/tgv/main.py`
     ```bash
-    mpirun -np <number_of_processes> python examples/tgv.py
+    mpirun -np <number_of_processes> -u python main.py # `-u` for unbuffered mode (all streams are flushed immediately)
     ```
 
 ### Uninstall
@@ -45,7 +45,7 @@ mamba activate <env_name>
 pip uninstall periodicflow
 ```
 
-**Note**: One might have to remove a `periodicflow.egg-info/` folder manually (typically under `src/`) as well, since `pip uninstall` does not automatically remove this folder. 
+**Note**: One might have to remove a `periodicflow.egg-info/` folder manually (typically under `src/`), since `pip uninstall` does not automatically remove this folder. 
 
 
 
