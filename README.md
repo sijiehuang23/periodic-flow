@@ -34,7 +34,7 @@ The following time integration schemes are provided for now:
     ```
     For example, to run `examples/2d/tgv/main.py`
     ```bash
-    mpirun -np <number_of_processes> -u python main.py # `-u` for unbuffered mode (all streams are flushed immediately)
+    mpirun -np <number_of_processes> python -u main.py # `-u` for unbuffered mode, flushing I/O streams immediately
     ```
 
 ### Uninstall
