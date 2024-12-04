@@ -136,41 +136,73 @@ class HDF5Writer:
         self.end_points = [x_end for _, x_end in params.domain]
         self.periodic = params.enforce_periodic
 
-        self.solution_file = sf.ShenfunFile(
-            self.file_name,
-            self.solution_data['space'],
-            mode='w'
-        )
-        self.restart_file = sf.ShenfunFile(
-            self.restart_name,
-            self.restart_data['space'],
-            mode='w'
-        )
+        if params.write_data:
+            self.solution_file = sf.ShenfunFile(
+                self.file_name,
+                self.solution_data['space'],
+                mode=params.write_mode
+            )
+        if params.write_restart:
+            self.restart_file = sf.ShenfunFile(
+                self.restart_name,
+                self.restart_data['space'],
+                mode=params.restart_mode
+            )
+            if params.restart_mode == 'w':
+                self.restart_file.open()
+                self.restart_file.f.attrs.create('step', 0)
+                self.restart_file.f.attrs.create('t', 0.0)
+                self.restart_file.close()
 
     def write_data(self, step: int):
-        self.solution_file.write(step, self.solution_data['data'], as_scalar=True)
+        self.solution_file.write(step, self.solution_data['data'])
 
-    def write_restart(self, step: int):
+    def write_restart(self, t: float, step: int):
         self.restart_file.write(step, self.restart_data['data'])
+        self.restart_file.open()
+        self.restart_file.f.attrs['step'] = step
+        self.restart_file.f.attrs['t'] = t
+        self.restart_file.close()
 
     def close(self):
-        if self.solution_file.f:
+        if hasattr(self, "solution_file") and self.solution_file.f:
             self.solution_file.close()
 
-        if self.restart_file.f:
+        if hasattr(self, "restart_file") and self.restart_file.f:
             self.restart_file.close()
+
+    def read_restart_file(self):
+        """
+        Get info about the restart file. 
+        Data structure is assumed to follow the ShenfunFile format.
+        """
+        try:
+            if not Path(self.restart_file.filename).is_file():
+                raise FileNotFoundError(f"Restart file '{self.restart_file.filename}' not found.")
+
+            self.restart_file.open()
+            keys = self.restart_file.f['u_hat'].keys()
+            str_dim = "2D" if "2D" in keys else "3D"
+            steps = sorted(list(self.restart_file.f['u_hat'][str_dim].keys()), key=int)
+            if not steps:
+                raise ValueError(f"No steps found in 'u_hat/{str_dim}'")
+            data_path = f"u_hat/{str_dim}/{steps[-1]}"
+            t = self.restart_file.f.attrs.get('t', 0.0)
+            step = self.restart_file.f.attrs.get('step', 0)
+            self.restart_file.close()
+
+            return data_path, t, step
+        except Exception as e:
+            logger.critical(f"Error reading restart file '{self.restart_file.filename}': {e}")
+            self.mpi_comm.Abort(1)
 
     @staticmethod
     def _distribute_steps(rank: int, size: int, steps: list):
-        """
-        Distribute steps among MPI processes using round-robin scheme.
-        """
+        """Distribute steps using round-robin scheme."""
         return [steps[i] for i in range(len(steps)) if i % size == rank]
 
     def _get_dataset_info(self, input_file: Path):
-        """
-        Get information about the dataset structure.
-        """
+        """Get info about the dataset structure."""
 
         mpi_comm = self.mpi_comm
         rank = self.mpi_rank

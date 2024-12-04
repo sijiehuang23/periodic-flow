@@ -130,6 +130,9 @@ class SpaceSolver(FourierSpace):
         self.local_shape_physical = self.u.shape
         self.local_shape_fourier = self.u_hat.shape
 
+        self.local_slice_physical = self.u.local_slice()
+        self.local_slice_fourier = self.u_hat.local_slice()
+
         self._k0_mask_0 = np.where(self.k2 == 0, 0, 1)
         self._prod_n_sqrt = np.sqrt(np.prod(params.N))
         self._noise_normal_factor = self._k0_mask_0 / self._prod_n_sqrt / np.sqrt(2 - 2 / self.dim)

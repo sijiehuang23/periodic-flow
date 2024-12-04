@@ -18,11 +18,11 @@ class Solver:
 
     Parameters:
     ----------
-    path_to_input_file: str
-        Path to the input file containing the simulation parameters.
+    params: Params
+        Simulation parameters. 
     """
 
-    def __init__(self, path_to_input_file: str = 'input.json'):
+    def __init__(self, params: Params):
 
         self.mpi_comm = mpi.COMM_WORLD
         self.mpi_rank = self.mpi_comm.Get_rank()
@@ -30,7 +30,7 @@ class Solver:
 
         self.params = None
         if self.mpi_rank == 0:
-            self.params = Params(path_to_input_file)
+            self.params = params
         self.params = self.mpi_comm.bcast(self.params, root=0)
 
         np.random.seed(np.random.randint(0, 2**32 - 1))
@@ -76,7 +76,7 @@ class Solver:
 
         restart_dict = {
             "space": self.space_solver.V,
-            "data": {'0': {'u_hat': [self.space_solver.u_hat]}}
+            "data": {'u_hat': [self.space_solver.u_hat]}
         }
 
         self.data_writer = HDF5Writer(
@@ -107,17 +107,23 @@ class Solver:
             )
             self.space_solver.backward()
 
-    def restart(self, u0: np.ndarray, t0: float, step0: int, space: str):
-        local_slice = self.space_solver.V.local_slice((space.casefold() == 'fourier'))
-        if space.casefold() == 'fourier':
-            self.space_solver.u_hat = u0[local_slice]
-            self.space_solver.backward()
-        else:
-            self.space_solver.u = u0[local_slice]
-            self.space_solver.forward()
-        self.t = t0
-        self.step = step0
-        self.data_writer.time_points[0] = t0
+    def restart(self):
+        data_path, t, step = self.data_writer.read_restart_file()
+        self.data_writer.restart_file.open()
+        self.data_writer.restart_file.f[data_path].read_direct(
+            self.space_solver.u_hat,
+            source_sel=self.space_solver.local_slice_fourier
+        )
+        self.data_writer.restart_file.close()
+        self.space_solver.backward()
+        self.t = t
+        self.step = step
+        self.data_writer.time_points[0] = t
+
+        dt = self.data_writer.time_points[1] - self.data_writer.time_points[0]
+        if dt < 1e-8:
+            logger.critical("Restart time is equal to end time.")
+            self.mpi_comm.Abort(1)
 
     def set_linear_operator(self, L: np.ndarray):
         self.space_solver.linear_operator[:] = L
@@ -165,13 +171,12 @@ class Solver:
                     self.space_solver.backward()
                     self.data_writer.write_data(self.step)
 
+            if self.params.write_restart:
                 if self.step % self.params.restart_interval == 0:
-                    self.data_writer.write_restart(self.step)
+                    self.data_writer.write_restart(self.t, self.step)
 
             if self.step % self.params.check_interval == 0:
                 self._timer(self.t, self.step)
 
-        if self.params.write_data:
-            self.data_writer.close()
-
+        self.data_writer.close()
         self._timer.final()
