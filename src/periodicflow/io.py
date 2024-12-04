@@ -4,6 +4,7 @@ import h5py
 import mpi4py.MPI as mpi
 import json
 import traceback
+import pprint
 from periodicflow import logger
 from .utils import periodic_bc
 
@@ -48,6 +49,7 @@ class Params:
             'write_data': False,
             'file_name': 'data',
             'write_interval': np.iinfo(np.int64).max,
+            'write_first_step': True,
             'write_mode': 'w',
             'enforce_periodic': True,
             'write_restart': False,
@@ -70,7 +72,6 @@ class Params:
 
     def print(self):
         """Print the parameters in a human-readable format."""
-        import pprint
         pprint.pprint(self.__dict__)
 
     def update(self, params):
@@ -99,6 +100,7 @@ class Params:
             "write_data": "Write velocity data to file.",
             "file_name": "Name of the output file.",
             "write_interval": "Interval for writing data to file.",
+            "write_first_step": "Write the initial data to file.",
             "write_mode": "Write mode for the output file.",
             "enforce_periodic": "Enforce periodic boundary conditions.",
             "write_restart": "Write restart data to file.",

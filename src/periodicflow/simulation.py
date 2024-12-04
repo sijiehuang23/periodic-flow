@@ -151,8 +151,10 @@ class Solver:
 
         u_tmp = self.space_solver.cached_array[(u_hat, 0, True)]
 
-        if self.params.write_data:
+        if self.params.write_data and self.params.write_first_step:
             self.data_writer.write_data(self.step)
+
+        self._timer(self.t, self.step)
 
         while not np.isclose(self.t, self.params.end_time, atol=1e-9):
             self.t += dt
