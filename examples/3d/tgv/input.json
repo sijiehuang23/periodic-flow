@@ -1,24 +1,25 @@
 {
-    "N": [128, 128],
+    "N": [256, 256, 256],
     "domain": [
+        [0.0, 6.283185307179586],
         [0.0, 6.283185307179586],
         [0.0, 6.283185307179586]
     ],
     "dt": 1e-3,
-    "end_time": 1.0,
+    "end_time": 10.0,
     "enable_nonlinear": true,
     "time_integrator": "rk3",
-    "viscosity": 1e-3,
+    "viscosity": 0.000625,
     "noise_type": "thermal",
     "noise_mag": 0.0,
     "optimization": true,
 
-    "verbose": false,
-    "check_interval": 1e11,
+    "verbose": true,
+    "check_interval": 500,
 
-    "write_data": false,
-    "file_name": "data",
-    "write_interval": 1e11,
+    "write_data": true,
+    "file_name": "tgv",
+    "write_interval": 40,
     "write_mode": "w",
     "enforce_periodic": true,
 
