@@ -105,6 +105,15 @@ class Solver:
                 self.space_solver.k_over_k2,
                 self.space_solver.p_hat
             )
+
+            if self.params.filter_velocity:
+                math.leray_projection(
+                    self.space_solver.u_bar_hat,
+                    self.space_solver.k,
+                    self.space_solver.k_over_k2,
+                    self.space_solver.p_hat
+                )
+
             self.space_solver.backward()
 
     def restart(self):
