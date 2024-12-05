@@ -184,7 +184,10 @@ class SpaceSolver(FourierSpace):
                     if self.mpi_rank == 0:
                         logger.critical(str(e))
                     self.mpi_comm.Abort(1)
+
             self.u[:] = u0
+            if self._filter_velocity:
+                self.u_bar[:] = u0
             self.forward()
 
         elif space.casefold() == 'fourier':
@@ -199,6 +202,8 @@ class SpaceSolver(FourierSpace):
                     self.mpi_comm.Abort(1)
 
             self.u_hat[:] = u0
+            if self._filter_velocity:
+                self.u_bar_hat[:] = u0
             self.backward()
         else:
             raise ValueError("SpaceSolver.initialize_velocity: Invalid space type. Options are 'physical' or 'fourier'.")
