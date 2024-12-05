@@ -106,14 +106,6 @@ class Solver:
                 self.space_solver.p_hat
             )
 
-            if self.params.filter_velocity:
-                math.leray_projection(
-                    self.space_solver.u_bar_hat,
-                    self.space_solver.k,
-                    self.space_solver.k_over_k2,
-                    self.space_solver.p_hat
-                )
-
             self.space_solver.backward()
 
     def restart(self):
@@ -164,6 +156,7 @@ class Solver:
             self.space_solver.filter_velocity()
 
         if self.params.write_data and self.params.write_first_step:
+            self.space_solver.backward()
             self.data_writer.write_data(self.step)
 
         self._timer(self.t, self.step)
