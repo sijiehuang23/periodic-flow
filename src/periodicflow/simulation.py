@@ -71,7 +71,7 @@ class Solver:
         solution_dict = {"space": self.space_solver.V}
         component_names = ['u', 'v', 'w'][:self.space_solver.dim]
         solution_dict["data"] = {
-            name: [self.space_solver.u[i]] for i, name in enumerate(component_names)
+            name: [self.space_solver.u_bar[i]] for i, name in enumerate(component_names)
         }
 
         restart_dict = {
@@ -151,6 +151,9 @@ class Solver:
 
         u_tmp = self.space_solver.cached_array[(u_hat, 0, True)]
 
+        if self.params.filter_velocity:
+            self.space_solver.filter_velocity()
+
         if self.params.write_data and self.params.write_first_step:
             self.data_writer.write_data(self.step)
 
@@ -167,6 +170,9 @@ class Solver:
                 self.time_integrator.stepping(
                     u_hat, u_tmp, stage, rhs_nonlinear, rhs_linear, forcing, noise
                 )
+
+            if self.params.filter_velocity:
+                self.space_solver.filter_velocity()
 
             if self.params.write_data:
                 if self.step % self.params.write_interval == 0:

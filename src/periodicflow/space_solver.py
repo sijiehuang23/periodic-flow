@@ -112,11 +112,11 @@ class SpaceSolver(FourierSpace):
         self.cached_array = sf.CachedArrayDict()
 
         self._enable_nonlinear = params.enable_nonlinear
+        self._filter_velocity = params.filter_velocity
         self.viscosity = params.viscosity
 
         self.noise_type = params.noise_type
         self.noise_mag = params.noise_mag
-        self._filter_noise = params.filter_noise
         if self.noise_type not in ('thermal', 'correlated'):
             try:
                 raise ValueError(f"Invalid noise type '{self.noise_type}'. Options are 'thermal' or 'correlated'.")
@@ -146,6 +146,10 @@ class SpaceSolver(FourierSpace):
         self.u = sf.Array(self.V)
         self.u_hat = sf.Function(self.V)
         self.u_dealias = sf.Array(self.Vp)
+
+        if self._filter_velocity:
+            self.u_bar = sf.Array(self.V)
+            self.u_bar_hat = sf.Function(self.V)
 
         self._uw = self.cached_array[(self.u_dealias, 0, True)]
 
@@ -204,15 +208,21 @@ class SpaceSolver(FourierSpace):
 
     def forward(self):
         """
-        Call the forward transform from the vector space in space_solver 
+        Call the forward transform from the vector space in space_solver
         """
         self.u_hat = self.V.forward(self.u, self.u_hat)
+
+        if self._filter_velocity:
+            self.u_bar_hat = self.V.forward(self.u_bar, self.u_bar_hat)
 
     def backward(self):
         """
         Call the backward transform from the vector space in space_solver
         """
-        self.u = self.V.backward(self.u_hat, self.u)
+        if self._filter_velocity:
+            self.u_bar = self.V.backward(self.u_bar_hat, self.u_bar)
+        else:
+            self.u = self.V.backward(self.u_hat, self.u)
 
     def random_fields(self):
         """
@@ -241,9 +251,6 @@ class SpaceSolver(FourierSpace):
         leray_projection(self.noise, self.k, self.k_over_k2, self.p_hat)
         self.noise *= self.noise_mag
 
-        if self._filter_noise:
-            apply_linear_operator(self.noise, self.filter_kernel, self.noise)
-
     def thermal_noise(self):
         """
         Generate thermal noise field.
@@ -258,6 +265,10 @@ class SpaceSolver(FourierSpace):
     def add_forcing(self):
         """Generate external forcing field."""
         pass
+
+    def filter_velocity(self):
+        """Filter the velocity field."""
+        apply_linear_operator(self.u_bar_hat, self.filter_kernel, self.u_hat)
 
     def compute_rhs_linear(self):
         """Compute the linear part of the right-hand side."""
