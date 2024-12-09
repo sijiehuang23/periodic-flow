@@ -1,7 +1,7 @@
 """
 This module contains the LagrangianParticles class (and its helper classes) for tracking the trajectory of passive particles in a fluid flow field.
 
-The module is designed somewhat like an independent package, not integrated with the rest of the periodicflow package for the sake of simplicity. 
+The module is designed somewhat like an independent package, not integrated with the rest of the periodicflow package for the sake of simplicity.
 
 Example:
 ```python
@@ -181,7 +181,7 @@ class LagrangianParticles:
     """
     This class is used to track the trajectory of passive particles in a fluid flow field. Note that
     this class is designed to perform Lagrangian Particle Tracking (LPT) ONLY in the post-processing stage.
-    The velocity field is assumed to be in a periodic domain. 
+    The velocity field is assumed to be in a periodic domain.
 
     The class uses a `RegularGridInterpolator` from `SciPy` to interpolate the velocity field data at the particle positions. The equation of motion is integrated using the 2nd-order Adams-Bashforth scheme.
 
@@ -189,7 +189,7 @@ class LagrangianParticles:
     ----------
     - input_file: str
         The name of the input file containing the velocity field data.
-    - grid: list 
+    - grid: list
         The grid coordinates for each dimension of the velocity field.
     - grp_name: str, optional
         The name of the group containing `'fields'`. Default is ''.
@@ -360,7 +360,7 @@ class LagrangianParticles:
             self.write()
 
         self.h5reader.open()
-        for tstep in self.h5reader.steps[:2]:
+        for tstep in self.h5reader.steps:
             self.step += 1
             self.t += self._dt
 
@@ -375,64 +375,68 @@ class LagrangianParticles:
 
         self.timer.stop()
 
+    def compute_msd(self):
+        """
+        Compute the Mean Squared Displacement (MSD) using either time lag or absolute time.
 
-def compute_msd(trajectory: np.ndarray, time: np.ndarray):
-    """
-    Compute the Mean Squared Displacement (MSD) using either time lag or absolute time.
+        Parameters
+        ----------
+        - trajectory: ndarray
+            The trajectory array with shape (n_dims, n_particles, n_samples).
+        - time: ndarray
+            The time array with shape (n_samples,).
 
-    Parameters
-    ----------
-    - trajectory: ndarray
-        The trajectory array with shape (n_dims, n_particles, n_samples).
-    - time: ndarray
-        The time array with shape (n_samples,).
+        Returns
+        ---------
+        - msd (ndarray):
+            The computed MSD values.
+        - time_lags (ndarray):
+            The corresponding time lags (or absolute times) for each MSD value.
+        """
 
-    Returns
-    ---------
-    - msd (ndarray):
-        The computed MSD values.
-    - time_lags (ndarray):
-        The corresponding time lags (or absolute times) for each MSD value.
-    """
+        self.h5writer.open()
+        steps = sorted(list(self.h5writer.f['trajectory'].keys()), key=int)
+        n_steps = len(steps)
 
-    n_samples = trajectory.shape[-1]
+        trajectory = np.zeros((self._ndim, self._n_particles, n_steps))
+        for i, step in enumerate(steps):
+            trajectory[..., i] = self.h5writer.f['trajectory'][step]
 
-    msd = np.zeros(n_samples)
-    time_lags = time - time[0]
+        msd = np.zeros(n_steps)
+        self._calculate_displacement_sum(msd, trajectory)
 
-    _calculate_displacement_sum(msd, trajectory)
+        self.h5writer.f.create_dataset('msd', data=msd)
+        self.h5writer.close()
 
-    return msd, time_lags
+    @staticmethod
+    @nb.njit
+    def _calculate_displacement_sum(msd, trajectory):
+        """
+        Compute the Mean Squared Displacement (MSD) using time lags.
 
+        Parameters
+        ----------
+        - msd: ndarray
+            Pre-allocated array to store the MSD values.
+        - trajectory: ndarray
+            The trajectory array with shape (n_dims, n_particles, n_samples).
 
-@nb.njit
-def _calculate_displacement_sum(msd, trajectory):
-    """
-    Compute the Mean Squared Displacement (MSD) using time lags.
+        Returns
+        ---------
+        None
+        """
+        n_dims, n_particles, n_samples = trajectory.shape
 
-    Parameters
-    ----------
-    - msd: ndarray
-        Pre-allocated array to store the MSD values.
-    - trajectory: ndarray
-        The trajectory array with shape (n_dims, n_particles, n_samples).
+        for lag in range(1, n_samples):
+            sum_squared_displacements = 0.0
+            time_lag = n_samples - lag
 
-    Returns
-    ---------
-    None
-    """
-    n_dims, n_particles, n_samples = trajectory.shape
+            for dim in range(n_dims):
+                for particle in range(n_particles):
+                    for t in range(time_lag):
+                        displacement = (
+                            trajectory[dim, particle, t + lag] - trajectory[dim, particle, t]
+                        )
+                        sum_squared_displacements += displacement ** 2
 
-    for lag in range(1, n_samples):
-        sum_squared_displacements = 0.0
-        time_lag = n_samples - lag
-
-        for dim in range(n_dims):
-            for particle in range(n_particles):
-                for t in range(time_lag):
-                    displacement = (
-                        trajectory[dim, particle, t + lag] - trajectory[dim, particle, t]
-                    )
-                    sum_squared_displacements += displacement ** 2
-
-        msd[lag] = sum_squared_displacements / (n_particles * time_lag)
+            msd[lag] = sum_squared_displacements / (n_particles * time_lag)
