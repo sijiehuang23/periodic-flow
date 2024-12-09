@@ -14,6 +14,9 @@ except ImportError:
     raise ImportError('shenfun is required for this module')
 
 
+__all__ = ['Params', 'HDF5Writer']
+
+
 class Params:
     def __init__(self, json_file='input.json'):
         self._load_json(json_file)
