@@ -15,12 +15,12 @@ import scipy as sp
 import numba as nb
 import h5py
 import time
-import inspect
 from pathlib import Path
 from datetime import datetime
+from .utils import format_time
 
 
-__all__ = ['LagrangianParticles', 'compute_msd']
+__all__ = ['LagrangianParticles']
 
 
 class _Timer:
@@ -47,13 +47,7 @@ class _Timer:
         runtime = time.time() - self.tic
         end_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         if self.verbose:
-            print(f"LPT finished at {end_time}\n  Total runtime: {self.format_time(runtime)}")
-
-    @staticmethod
-    def format_time(runtime):
-        hours, rem = divmod(runtime, 3600)
-        minutes, seconds = divmod(rem, 60)
-        return f"{int(hours):02}:{int(minutes):02}:{seconds:02}"
+            print(f"LPT finished at {end_time}\n  Total runtime: {format_time(runtime, 'mm:ss')}")
 
 
 class _H5Reader:
@@ -62,12 +56,11 @@ class _H5Reader:
         self._velocity_path = velocity_path
         self._ndim = len(velocity_path)
 
-        self._sanity_check()
-        self._get_velocity_info()
+        self._get_info()
 
         self.velocity = np.empty((self._ndim, *self._shape), dtype=np.float64)
 
-    def _sanity_check(self):
+    def _get_info(self):
         if not Path(self.filename).is_file():
             raise FileNotFoundError(f"File '{self.filename}' not found.")
 
@@ -80,10 +73,6 @@ class _H5Reader:
             if not all(s.isdigit() for s in steps):
                 raise ValueError(f"Potentially wrong path to velocity: '{vel_path}'.")
         self.steps = steps
-        self.close()
-
-    def _get_velocity_info(self):
-        self.open()
         self._shape = self.f[self._velocity_path[0]][self.steps[0]].shape
         self.close()
 
@@ -146,8 +135,8 @@ class _H5Writer:
     def restart(self):
         try:
             self.open('r')
-            self._read_steps()
 
+            self._read_data_info()
             if len(self._steps) < 2:
                 raise ValueError("Not enough steps to restart. At least two steps are required.")
 
@@ -159,7 +148,7 @@ class _H5Writer:
             required_groups = ['position', 'trajectory', 'velocity']
             for group in required_groups:
                 if group not in self.f:
-                    raise KeyError(f"Missing required group: {group}")
+                    raise KeyError(f"restart(): Missing required group: {group}")
 
             restart_data = {
                 't': self.f.attrs['t'],
@@ -239,9 +228,6 @@ class LagrangianParticles:
         self.step = 0
         self._n_stages = 2    # number of stages for Adams-Bashforth scheme
 
-        self._module_name = inspect.getmodule(self.__class__).__name__
-        self._class_name = self.__class__.__name__
-
         self._set_coordinates(grid)
 
         self._init_hdf5_reader(input_file, data_path_velocity)
@@ -260,12 +246,12 @@ class LagrangianParticles:
         self._L = np.array([g.max() - g.min() for g in grid])
 
     def _initialize(self):
-        self.position = np.zeros((self._ndim, self._n_particles), dtype=np.float64)     # position
-        self.trajectory = np.zeros((self._ndim, self._n_particles), dtype=np.float64)   # trajectory
-        self.velocity = np.zeros((self._ndim, self._n_particles, self._n_stages), dtype=np.float64)  # velocity; the last dimension contains velocities at current (0) and previous (1) time steps
+        self.p_position = np.zeros((self._ndim, self._n_particles), dtype=np.float64)     # p(article) position
+        self.p_trajectory = np.zeros((self._ndim, self._n_particles), dtype=np.float64)   # p(article) trajectory
+        self.p_velocity = np.zeros((self._ndim, self._n_particles, self._n_stages), dtype=np.float64)  # p(article) velocity; the last dimension contains velocities at current (0) and previous (1) time steps
 
         for i in range(self._ndim):
-            self.position[i] = np.random.uniform(self._domain[i, 0], self._domain[i, 1], self._n_particles)
+            self.p_position[i] = np.random.uniform(self._domain[i, 0], self._domain[i, 1], self._n_particles)
 
     def _init_hdf5_reader(self, filename: str, velocity_path: list[str]):
         if len(velocity_path) != self._ndim:
@@ -297,20 +283,20 @@ class LagrangianParticles:
         self.h5reader.read_velocity()
         self.h5reader.close()
         self._update_velocity(self.h5reader.velocity)
-        self.velocity[..., 1] = self.velocity[..., 0]
+        self.p_velocity[..., 1] = self.p_velocity[..., 0]
 
     def _update_velocity(self, velocity: np.ndarray):
-        self.velocity[..., 1] = self.velocity[..., 0]
+        self.p_velocity[..., 1] = self.p_velocity[..., 0]
 
         for i in range(self._ndim):
             self.interpolator[i].values[:] = velocity[i]
 
-        self.velocity[..., 0] = np.array([interp(self.position.T) for interp in self.interpolator])
+        self.p_velocity[..., 0] = np.array([interp(self.p_position.T) for interp in self.interpolator])
 
     def init_position(self, position: np.ndarray):
         if position.shape != (self._ndim, self._n_particles):
             raise ValueError(f"Position array shape {position.shape} must match ({self._ndim}, {self._n_particles}).")
-        self.position[:] = position
+        self.p_position[:] = position
         self._init_velocity()
 
     def restart(self):
@@ -320,12 +306,12 @@ class LagrangianParticles:
 
         self.t = restart_data['t']
         self.step = restart_data['step']
-        self.position[:] = restart_data['position']
-        self.trajectory[:] = restart_data['trajectory']
-        self.velocity[:] = restart_data['velocity']
+        self.p_position[:] = restart_data['position']
+        self.p_trajectory[:] = restart_data['trajectory']
+        self.p_velocity[:] = restart_data['velocity']
 
     def write(self):
-        self.h5writer.write(self.t, self.step, self.position, self.trajectory, self.velocity[..., 0])
+        self.h5writer.write(self.t, self.step, self.p_position, self.p_trajectory, self.p_velocity[..., 0])
 
     @staticmethod
     @nb.njit
@@ -366,8 +352,8 @@ class LagrangianParticles:
 
             self.h5reader.read_velocity(tstep)
             self._update_velocity(self.h5reader.velocity)
-            self._adams_bashforth2(self.position, self.velocity, self.trajectory, self._dt)
-            self._periodic_bc(self.position, self._domain, self._L)
+            self._adams_bashforth2(self.p_position, self.p_velocity, self.p_trajectory, self._dt)
+            self._periodic_bc(self.p_position, self._domain, self._L)
 
             self.write()
             self.timer(self.step, self.t)

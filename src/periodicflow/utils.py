@@ -15,6 +15,34 @@ def periodic_bc(u: np.ndarray) -> np.ndarray:
     return u
 
 
+def format_time(seconds: float, format='dd-hh:mm:ss') -> str:
+    """
+    Format the time into various formats: 'dd-hh:mm:ss', 'hh:mm:ss', or 'mm:ss'.
+
+    Parameters:
+        seconds (float): Time in seconds.
+        format (str): Desired format ('dd-hh:mm:ss', 'hh:mm:ss', 'mm:ss').
+
+    Returns:
+        str: Formatted time string.
+    """
+    days, remainder = divmod(seconds, 86400)  # Total seconds in a day
+    hours, remainder = divmod(remainder, 3600)
+    minutes, secs = divmod(remainder, 60)
+
+    format = format.casefold()
+    if format == 'ss':
+        return f"{seconds:02d}"
+    elif format == 'mm:ss':
+        return f"{int(minutes):02d}:{int(secs):02d}"
+    elif format == 'hh:mm:ss':
+        return f"{int(hours):02d}:{int(minutes):02d}:{int(secs):02d}"
+    elif format == 'dd-hh:mm:ss':
+        return f"{int(days):02d}-{int(hours):02d}:{int(minutes):02d}:{int(secs):02d}"
+    else:
+        raise ValueError("Invalid format. Choose 'dd-hh:mm:ss', 'hh:mm:ss', 'mm:ss', or 'ss'.")
+
+
 class Timer:
     """Class to measure the time taken for a simulation to run.
 
@@ -68,30 +96,4 @@ class Timer:
         runtime_avg = runtime_sum / self.mpi_size
 
         if self.mpi_rank == 0:
-            logger.info(f"Simulation completed. Total run time: {self._format_time(runtime_avg, 'hh:mm:ss')}")
-
-    @staticmethod
-    def _format_time(seconds: float, format='dd-hh:mm:ss') -> str:
-        """
-        Format the time into various formats: 'dd-hh:mm:ss', 'hh:mm:ss', or 'mm:ss'.
-
-        Parameters:
-            seconds (float): Time in seconds.
-            format (str): Desired format ('dd-hh:mm:ss', 'hh:mm:ss', 'mm:ss').
-
-        Returns:
-            str: Formatted time string.
-        """
-        days, remainder = divmod(seconds, 86400)  # Total seconds in a day
-        hours, remainder = divmod(remainder, 3600)
-        minutes, secs = divmod(remainder, 60)
-
-        format = format.casefold()
-        if format == 'mm:ss':
-            return f"{int(minutes):02d}:{int(secs):02d}"
-        elif format == 'hh:mm:ss':
-            return f"{int(hours):02d}:{int(minutes):02d}:{int(secs):02d}"
-        elif format == 'dd-hh:mm:ss':
-            return f"{int(days):02d}-{int(hours):02d}:{int(minutes):02d}:{int(secs):02d}"
-        else:
-            raise ValueError("Invalid format. Choose 'dd-hh:mm:ss', 'hh:mm:ss', or 'mm:ss'.")
+            logger.info(f"Simulation completed. Total run time: {format_time(runtime_avg, 'hh:mm:ss')}")
