@@ -79,7 +79,7 @@ class Timer:
         dt_avg = dt_sum / self.mpi_size
 
         if self.verbose and self.mpi_rank == 0:
-            logger.info(f"Step = {step:08d}, time = {simulation_time:.2e}, runtime since last check = {self._format_time(dt_avg, 'mm:ss')}")
+            logger.info(f"Step = {step:08d}, time = {simulation_time:.2e}, runtime since last check = {format_time(dt_avg, 'mm:ss')}")
 
         self.comm.Barrier()
 
