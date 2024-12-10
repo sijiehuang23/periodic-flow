@@ -35,7 +35,7 @@ class _Timer:
             t_curr = time.time()
             dt = t_curr - self.t_check
             self.t_check = t_curr
-            print(f"    Step = {step:06d}, time = {t:.2e}, runtime since last check = {self.format_time(dt)}")
+            print(f"\tStep = {step:06d}, time = {t:.2e}, runtime since last check = {format_time(dt)}")
 
     def start(self):
         self.tic = self.t_check = time.time()
