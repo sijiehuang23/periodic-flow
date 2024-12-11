@@ -361,68 +361,66 @@ class LagrangianParticles:
 
         self.timer.stop()
 
-    def compute_msd(self):
-        """
-        Compute the Mean Squared Displacement (MSD) using either time lag or absolute time.
 
-        Parameters
-        ----------
-        - trajectory: ndarray
-            The trajectory array with shape (n_dims, n_particles, n_samples).
-        - time: ndarray
-            The time array with shape (n_samples,).
+def compute_msd(self):
+    """
+    Compute the Mean Squared Displacement (MSD) using either time lag or absolute time.
 
-        Returns
-        ---------
-        - msd (ndarray):
-            The computed MSD values.
-        - time_lags (ndarray):
-            The corresponding time lags (or absolute times) for each MSD value.
-        """
+    Parameters
+    ----------
+    - trajectory: ndarray
+        The trajectory array with shape (n_dims, n_particles, n_samples).
+    - time: ndarray
+        The time array with shape (n_samples,).
 
-        self.h5writer.open()
-        steps = sorted(list(self.h5writer.f['trajectory'].keys()), key=int)
-        n_steps = len(steps)
+    Returns
+    ---------
+    - msd (ndarray):
+        The computed MSD values.
+    - time_lags (ndarray):
+        The corresponding time lags (or absolute times) for each MSD value.
+    """
 
-        trajectory = np.zeros((self._ndim, self._n_particles, n_steps))
-        for i, step in enumerate(steps):
-            trajectory[..., i] = self.h5writer.f['trajectory'][step]
+    self.h5writer.open()
+    steps = sorted(list(self.h5writer.f['trajectory'].keys()), key=int)
+    n_steps = len(steps)
 
-        msd = np.zeros(n_steps)
-        self._calculate_displacement_sum(msd, trajectory)
+    trajectory = np.zeros((self._ndim, self._n_particles, n_steps))
+    for i, step in enumerate(steps):
+        trajectory[..., i] = self.h5writer.f['trajectory'][step]
 
-        self.h5writer.f.create_dataset('msd', data=msd)
-        self.h5writer.close()
+    msd = np.zeros(n_steps)
+    self._calculate_displacement_sum(msd, trajectory)
 
-    @staticmethod
-    @nb.njit
-    def _calculate_displacement_sum(msd, trajectory):
-        """
-        Compute the Mean Squared Displacement (MSD) using time lags.
+    self.h5writer.f.create_dataset('msd', data=msd)
+    self.h5writer.close()
 
-        Parameters
-        ----------
-        - msd: ndarray
-            Pre-allocated array to store the MSD values.
-        - trajectory: ndarray
-            The trajectory array with shape (n_dims, n_particles, n_samples).
 
-        Returns
-        ---------
-        None
-        """
-        n_dims, n_particles, n_samples = trajectory.shape
+@nb.njit
+def _calculate_displacement_sum(msd, trajectory):
+    """
+    Compute the Mean Squared Displacement (MSD) using time lags.
 
-        for lag in range(1, n_samples):
-            sum_squared_displacements = 0.0
-            time_lag = n_samples - lag
+    Parameters
+    ----------
+    - msd: ndarray
+        Pre-allocated array to store the MSD values.
+    - trajectory: ndarray
+        The trajectory array with shape (n_dims, n_particles, n_samples).
+    """
 
-            for dim in range(n_dims):
-                for particle in range(n_particles):
-                    for t in range(time_lag):
-                        displacement = (
-                            trajectory[dim, particle, t + lag] - trajectory[dim, particle, t]
-                        )
-                        sum_squared_displacements += displacement ** 2
+    n_dims, n_particles, n_samples = trajectory.shape
 
-            msd[lag] = sum_squared_displacements / (n_particles * time_lag)
+    for lag in range(1, n_samples):
+        sum_squared_displacements = 0.0
+        time_lag = n_samples - lag
+
+        for dim in range(n_dims):
+            for particle in range(n_particles):
+                for t in range(time_lag):
+                    displacement = (
+                        trajectory[dim, particle, t + lag] - trajectory[dim, particle, t]
+                    )
+                    sum_squared_displacements += displacement**2
+
+        msd[lag] = sum_squared_displacements / (n_particles * time_lag)
