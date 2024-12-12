@@ -226,7 +226,9 @@ class LagrangianParticles:
 
         self.t = 0.0
         self.step = 0
-        self._n_stages = 2    # number of stages for Adams-Bashforth scheme
+
+        self._n_stages = 2              # number of stages for the midpoint predictor-corrector scheme
+        self._mpc_factor = [0.5, 1.0]   # factors for the midpoint predictor-corrector scheme
 
         self._set_coordinates(grid)
 
@@ -246,12 +248,15 @@ class LagrangianParticles:
         self._L = np.array([g.max() - g.min() for g in grid])
 
     def _initialize(self):
-        self.p_position = np.zeros((self._ndim, self._n_particles), dtype=np.float64)     # p(article) position
-        self.p_trajectory = np.zeros((self._ndim, self._n_particles), dtype=np.float64)   # p(article) trajectory
-        self.p_velocity = np.zeros((self._ndim, self._n_particles, self._n_stages), dtype=np.float64)  # p(article) velocity; the last dimension contains velocities at current (0) and previous (1) time steps
+        # the prefix 'p_' denotes particle-related variables
+        self._p_pos_prev = np.zeros((self._ndim, self._n_particles), dtype=np.float64)
+        self.p_position = np.zeros((self._ndim, self._n_particles), dtype=np.float64)
+        self.p_trajectory = np.zeros((self._ndim, self._n_particles), dtype=np.float64)
+        self.p_velocity = np.zeros((self._ndim, self._n_particles), dtype=np.float64)
 
         for i in range(self._ndim):
             self.p_position[i] = np.random.uniform(self._domain[i, 0], self._domain[i, 1], self._n_particles)
+        self._p_pos_prev[:] = self.p_position
 
     def _init_hdf5_reader(self, filename: str, velocity_path: list[str]):
         if len(velocity_path) != self._ndim:
@@ -282,16 +287,18 @@ class LagrangianParticles:
         self.h5reader.open()
         self.h5reader.read_velocity()
         self.h5reader.close()
-        self._update_velocity(self.h5reader.velocity)
-        self.p_velocity[..., 1] = self.p_velocity[..., 0]
+        self._update_flow_velocity(self.h5reader.velocity)
+        self._update_particle_velocity()
 
-    def _update_velocity(self, velocity: np.ndarray):
-        self.p_velocity[..., 1] = self.p_velocity[..., 0]
-
+    def _update_flow_velocity(self, flow_velocity: np.ndarray):
         for i in range(self._ndim):
-            self.interpolator[i].values[:] = velocity[i]
+            self.interpolator[i].values[:] = flow_velocity[i]
 
-        self.p_velocity[..., 0] = np.array([interp(self.p_position.T) for interp in self.interpolator])
+    def _update_particle_velocity(self):
+        self.p_velocity[:] = np.array([interp(self.p_position.T) for interp in self.interpolator])
+
+    def _update_previous_position(self):
+        self._p_pos_prev[:] = self.p_position
 
     def init_position(self, position: np.ndarray):
         if position.shape != (self._ndim, self._n_particles):
@@ -311,21 +318,26 @@ class LagrangianParticles:
         self.p_velocity[:] = restart_data['velocity']
 
     def write(self):
-        self.h5writer.write(self.t, self.step, self.p_position, self.p_trajectory, self.p_velocity[..., 0])
+        self.h5writer.write(self.t, self.step, self.p_position, self.p_trajectory, self.p_velocity)
 
     @staticmethod
     @nb.njit
-    def _adams_bashforth2(pos: np.ndarray, vel: np.ndarray, traj: np.ndarray, dt: float):
-        shape = pos.shape
-
-        u_curr = vel[..., 0]
-        u_prev = vel[..., 1]
+    def _midpoint_predictor_corrector(
+        pos_curr: np.ndarray,
+        pos_prev: np.ndarray,
+        vel: np.ndarray,
+        traj: np.ndarray,
+        a: float, dt: float, stage: int
+    ):
+        shape = pos_curr.shape
 
         for i in range(shape[0]):
             for j in range(shape[1]):
-                dx = dt * (1.5 * u_curr[i, j] - 0.5 * u_prev[i, j])
-                pos[i, j] += dx
-                traj[i, j] += dx
+                dx = a * dt * vel[i, j]
+                pos_curr[i, j] = pos_prev[i, j] + dx
+
+                if stage == 1:
+                    traj[i, j] += dx
 
     @staticmethod
     @nb.njit
@@ -351,9 +363,19 @@ class LagrangianParticles:
             self.t += self._dt
 
             self.h5reader.read_velocity(tstep)
-            self._update_velocity(self.h5reader.velocity)
-            self._adams_bashforth2(self.p_position, self.p_velocity, self.p_trajectory, self._dt)
-            self._periodic_bc(self.p_position, self._domain, self._L)
+            self._update_flow_velocity(self.h5reader.velocity)
+            self._update_previous_position()
+            for stage in range(self._n_stages):
+                a = self._mpc_factor[stage]
+                self._update_particle_velocity()
+                self._midpoint_predictor_corrector(
+                    self.p_position,
+                    self._p_pos_prev,
+                    self.p_velocity,
+                    self.p_trajectory,
+                    a, self._dt, stage
+                )
+                self._periodic_bc(self.p_position, self._domain, self._L)
 
             self.write()
             self.timer(self.step, self.t)
