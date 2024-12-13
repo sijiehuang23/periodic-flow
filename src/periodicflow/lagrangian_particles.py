@@ -47,7 +47,7 @@ class _Timer:
         runtime = time.time() - self.tic
         end_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         if self.verbose:
-            print(f"LPT finished at {end_time}\n  Total runtime: {format_time(runtime, 'mm:ss')}")
+            print(f"LPT finished at {end_time}\n  Total runtime: {format_time(runtime, 'hh:mm:ss')}")
 
 
 class _H5Reader:
@@ -349,7 +349,7 @@ class LagrangianParticles:
 
     def stepping(self):
         """
-        Time stepping loop for the Lagrangian Particle Tracking (LPT). In each step, the motion of the particles is integrated using the 2nd-order Adams-Bashforth scheme.
+        Time stepping loop for the Lagrangian Particle Tracking (LPT). In each step, the motion of the particles is integrated using a midpoint predictor-corrector scheme.
         """
 
         self.timer.start()
