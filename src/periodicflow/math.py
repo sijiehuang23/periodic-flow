@@ -1,8 +1,9 @@
+import numpy as np
 import numba as nb
 
 
 @nb.njit
-def cross(c, a, b):
+def cross(c: np.ndarray, a: np.ndarray, b: np.ndarray):
     """
     Not that for 2D case, the cross product is designed in such a way that it works 
     for the nonlinear product u x w, where w the vorticity field is a scalar field.
@@ -29,7 +30,7 @@ def cross(c, a, b):
 
 
 @nb.njit
-def curl(c, k, a):
+def curl(c: np.ndarray, k: np.ndarray, a: np.ndarray):
     shape = a.shape
 
     if a.ndim == 3:
@@ -50,7 +51,7 @@ def curl(c, k, a):
 
 
 @nb.njit
-def apply_linear_operator(Lu, L, u):
+def apply_linear_operator(Lu: np.ndarray, L: np.ndarray, u: np.ndarray):
     ndim = u.ndim
     shape = u.shape
 
@@ -69,7 +70,7 @@ def apply_linear_operator(Lu, L, u):
 
 
 @nb.njit
-def leray_projection(u, k, k_k2, p_hat):
+def leray_projection(u: np.ndarray, k: np.ndarray, k_k2: np.ndarray, p_hat: np.ndarray):
     ndim = u.ndim
     shape = u.shape
 

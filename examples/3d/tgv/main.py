@@ -1,4 +1,5 @@
 import numpy as np
+from periodicflow.io import Params
 from periodicflow import simulation as sim
 
 
@@ -13,7 +14,8 @@ def taylor_green(x, local_shape):
 
 
 if __name__ == '__main__':
-    sol = sim.Solver()
+    params = Params()
+    sol = sim.Solver(params)
 
     x = sol.x
     local_shape = sol.local_shape_physical

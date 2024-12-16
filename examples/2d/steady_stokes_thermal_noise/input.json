@@ -1,0 +1,28 @@
+{
+    "N": [256, 256],
+    "domain": [
+        [0.0, 6.283185307179586],
+        [0.0, 6.283185307179586]
+    ],
+    "dt": 1e-3,
+    "end_time": 0.5,
+    "filter": false,
+    "viscosity": 1,
+    "noise_type": "thermal",
+    "noise_mag": 2,
+
+    "verbose": true,
+    "check_interval": 500,
+
+    "write_data": true,
+    "file_name": "thermal",
+    "write_interval": 1,
+    "write_first_step": true,
+    "write_mode": "w",
+    "enforce_periodic": true,
+
+    "write_restart": false,
+    "restart_name": "restart",
+    "restart_interval": 1e11,
+    "restart_mode": "w"
+}

@@ -1,5 +1,6 @@
 import numpy as np
 import argparse
+from periodicflow.io import Params
 from periodicflow import simulation as sim
 from periodicflow import logger
 
@@ -21,12 +22,11 @@ def parser_args(comm, rank):
 
 def initial_condition(shape, n, kBT):
     dim = shape[0]
-    factor = n**(dim / 2) / kBT**0.5 * np.sqrt(1 - 1 / dim)
+    factor = kBT**0.5 / n**(dim / 2)
 
     u0 = np.random.randn(*shape) + 1j * np.random.randn(*shape)
     for i in range(dim):
-        u0[i] /= np.std(u0[i]) * factor
-
+        u0[i] *= factor / np.std(u0[i])
     return u0
 
 

@@ -70,8 +70,12 @@ class Solver:
 
         solution_dict = {"space": self.space_solver.V}
         component_names = ['u', 'v', 'w'][:self.space_solver.dim]
+        if self.params.filter_velocity:
+            vars = self.space_solver.u_bar
+        else:
+            vars = self.space_solver.u
         solution_dict["data"] = {
-            name: [self.space_solver.u_bar[i]] for i, name in enumerate(component_names)
+            name: [vars[i]] for i, name in enumerate(component_names)
         }
 
         restart_dict = {

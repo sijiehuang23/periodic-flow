@@ -135,7 +135,8 @@ class SpaceSolver(FourierSpace):
 
         self._k0_mask_0 = np.where(self.k2 == 0, 0, 1)
         self._prod_n_sqrt = np.sqrt(np.prod(params.N))
-        self._noise_normal_factor = self._k0_mask_0 / self._prod_n_sqrt / np.sqrt(2 - 2 / self.dim)
+        # self._noise_normal_factor = self._k0_mask_0 / self._prod_n_sqrt / np.sqrt(2 - 2 / self.dim)
+        self._noise_normal_factor = self._k0_mask_0 / self._prod_n_sqrt / np.sqrt(2)
 
         self.linear_operator = -params.viscosity * self.k2
         self.correlation_func = sf.Function(self.S)

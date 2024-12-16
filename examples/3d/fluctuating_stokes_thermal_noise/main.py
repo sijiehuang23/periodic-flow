@@ -1,14 +1,15 @@
 import numpy as np
+from periodicflow.io import Params
 from periodicflow import simulation as sim
 
 
 def initial_condition(shape, n, kBT):
     dim = shape[0]
-    factor = n**(dim / 2) / kBT**0.5 * np.sqrt(1 - 1 / dim)
+    factor = kBT**0.5 / n**(dim / 2)
 
     u0 = np.random.randn(*shape) + 1j * np.random.randn(*shape)
     for i in range(dim):
-        u0[i] /= np.std(u0[i]) * factor
+        u0[i] *= factor / np.std(u0[i])
     return u0
 
 
@@ -16,7 +17,8 @@ if __name__ == '__main__':
     """
     This script solves for the fluctuating Stokes equation subject to the regular thermal noise.
     """
-    sol = sim.Solver()
+    params = Params()
+    sol = sim.Solver(params)
 
     shape = sol.local_shape_fourier
     u0 = initial_condition(shape, sol.params.N[0], 4.2052)
