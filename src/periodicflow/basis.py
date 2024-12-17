@@ -81,6 +81,8 @@ class FourierSpace:
         self.nyquist_mask = S.get_mask_nyquist() if mask_nyquist else None
 
         self.x = S.local_mesh()
+        self.dx = [(d[-1] - d[0]) / n for d, n in zip(self.domain, self.N)]
+        self.dV = np.prod(self.dx)
         self.k = np.array(k)
         self.k2 = sum(ki**2 for ki in k)
         self.k_over_k2 = np.array([ki / np.where(self.k2 == 0, 1, self.k2) for ki in k])
