@@ -26,11 +26,11 @@ class TimeIntegrator(ABC):
         self._optimization = optimization
 
         if linear_operator is not None:
-            self._lin_op_inv = 1 / (1 - self.dt / 2 * linear_operator)
+            self._lin_op_inv_m = 1 / (1 - self.dt / 2 * linear_operator)
 
     def update_linear_operator(self, L: np.ndarray):
         self._lin_op[:] = L
-        self._lin_op_inv[:] = 1 / (1 - self.dt / 2 * L)
+        self._lin_op_inv_m[:] = 1 / (1 - self.dt / 2 * L)
 
 
 @register_integrator('explicit_pc')
@@ -90,6 +90,65 @@ class ExplicitPredictorCorrector(TimeIntegrator):
                             )
 
 
+@register_integrator('crank_nicolson')
+class CrankNicolson(TimeIntegrator):
+    """
+    The Crank-Nicolson time integrator is only implemented for the fluctuating Stokes equations.
+    """
+
+    def __init__(self, dt: float, linear_operator: np.ndarray, optimization=True):
+        super().__init__(dt, linear_operator, optimization)
+
+        self.noise_factor = [0.0]
+        self.n_stages = 1
+        self._lin_op_p = 1 + self.dt / 2 * linear_operator
+
+        self.stepping = self._stepping_optimized if optimization else self._stepping_regular
+
+    def _stepping_regular(self, unew, u0, stage, rhs_nonlinear, rhs_linear, forcing, noise):
+        dt = self.dt
+        dt_sqrt = np.sqrt(dt)
+
+        unew[:] = self._lin_op_inv_m * (
+            self._lin_op_p * u0 + dt * forcing + dt_sqrt * noise
+        )
+
+    def _stepping_optimized(self, unew, u0, stage, rhs_nonlinear, rhs_linear, forcing, noise):
+        dt = self.dt
+        dt_sqrt = np.sqrt(dt)
+
+        self._loops_numba(
+            unew, u0, self._lin_op_inv_m, self._lin_op_p, dt, dt_sqrt, forcing, noise
+        )
+
+    @staticmethod
+    @nb.njit
+    def _loops_numba(unew, u0, lin_op_inv, lin_op_p, dt, dt_sqrt, forcing, noise):
+        ndim = u0.ndim
+        shape = u0.shape
+
+        if ndim == 3:
+            for i in range(shape[0]):
+                for j in range(shape[1]):
+                    for k in range(shape[2]):
+                        unew[i, j, k] = lin_op_inv[j, k] * (
+                            lin_op_p[j, k] * u0[i, j, k]
+                            + dt * forcing[i, j, k]
+                            + dt_sqrt * noise[i, j, k]
+                        )
+
+        elif ndim == 4:
+            for i in range(shape[0]):
+                for j in range(shape[1]):
+                    for k in range(shape[2]):
+                        for l in range(shape[3]):
+                            unew[i, j, k, l] = lin_op_inv[j, k, l] * (
+                                lin_op_p[j, k, l] * u0[i, j, k, l]
+                                + dt * forcing[i, j, k, l]
+                                + dt_sqrt * noise[i, j, k, l]
+                            )
+
+
 @register_integrator('implicit_pc')
 class ImplicitPredictorCorrector(TimeIntegrator):
     """
@@ -116,7 +175,7 @@ class ImplicitPredictorCorrector(TimeIntegrator):
         if stage == self.n_stages - 1:
             apply_linear_operator(rhs_linear, self._lin_op, u0)
 
-        unew[:] = self._lin_op_inv * (u0 + a * dt * (rhs_nonlinear + forcing) + b * dt * rhs_linear + dt_sqrt * noise)
+        unew[:] = self._lin_op_inv_m * (u0 + a * dt * (rhs_nonlinear + forcing) + b * dt * rhs_linear + dt_sqrt * noise)
 
     def _stepping_optimized(self, unew, u0, stage, rhs_nonlinear, rhs_linear, forcing, noise):
         a, b = self._increment_factor[stage]
@@ -126,7 +185,7 @@ class ImplicitPredictorCorrector(TimeIntegrator):
         if stage == self.n_stages - 1:
             apply_linear_operator(rhs_linear, self._lin_op, u0)
 
-        self._loops_numba(unew, self._lin_op_inv, dt, dt_sqrt, a, b, u0, rhs_nonlinear, rhs_linear, forcing, noise)
+        self._loops_numba(unew, self._lin_op_inv_m, dt, dt_sqrt, a, b, u0, rhs_nonlinear, rhs_linear, forcing, noise)
 
     @staticmethod
     @nb.njit

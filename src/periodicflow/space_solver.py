@@ -263,7 +263,7 @@ class SpaceSolver(FourierSpace):
         """
         _symmetrize(self.w_hat_sym, self.w_hat)
         _noise_divergence(self.noise, self.w_hat_sym, self.k)
-        self.noise /= np.sqrt(self.dV)
+        # self.noise /= np.sqrt(self.dV)
 
     def correlated_noise(self):
         """Generate spatially correlated noise field."""
